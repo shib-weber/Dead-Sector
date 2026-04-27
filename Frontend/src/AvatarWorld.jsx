@@ -314,12 +314,12 @@ const spawnBullet = useCallback(() => {
 
       <div style={ui}>
         <button onClick={handleGunOut} style={btn}>{isAiming ? "HOLSTER" : "DRAW WEAPON"}</button>
-        <button 
+        {/*<button 
            onMouseDown={handleFire} 
            style={{ ...btn, marginLeft: 10, background: isAiming ? 'rgba(255,0,0,0.8)' : '#222', borderColor: isAiming ? 'white' : 'red' }}
         >
           FIRE
-        </button>
+        </button>*/}
         <button onClick={handleSummon} style={{ ...btn, marginLeft: 10 }}>{dungeonStatus === "closed" ? "SUMMON" : "LIVE"}</button>
       </div>
 
@@ -348,6 +348,14 @@ const spawnBullet = useCallback(() => {
         <ContactShadows opacity={0.8} scale={30} blur={2.5} far={10} />
         <OrbitControls enabled={!isAiming} enablePan={false} maxPolarAngle={Math.PI / 2.1} />
       </Canvas>
+      {!gameOver && !monsterDead && (
+  <button
+    onMouseDown={handleFire}
+    style={fireBtn}
+  >
+    ●
+  </button>
+)}
 
       <style>{`@keyframes sweep { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
@@ -364,3 +372,24 @@ const dotStyle = { position: 'absolute', width: 8, height: 8, borderRadius: '50%
 const crosshair = { position: 'absolute', top: '30%', left: '50%', width: 34, height: 34, border: '1px solid rgba(255, 255, 255, 0.5)', borderRadius: '50%', transform: 'translate(-50%, -50%)', zIndex: 100, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }
 const innerCross = { width: 4, height: 4, background: 'red', borderRadius: '50%', boxShadow: '0 0 5px red' }
 const overlayStyle = { position: 'absolute', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.95)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 1000, color: 'white', fontFamily: 'monospace' }
+const fireBtn = {
+  position: 'absolute',
+  bottom: 30,
+  right: 30,
+  width: 70,
+  height: 70,
+  borderRadius: '50%',
+  background: 'rgba(255, 0, 0, 0.35)',
+  border: '2px solid rgba(255,255,255,0.6)',
+  color: '#fff',
+  fontSize: '28px',
+  fontWeight: 'bold',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+  zIndex: 200,
+  backdropFilter: 'blur(6px)',
+  boxShadow: '0 0 15px rgba(255,0,0,0.6)',
+  transition: '0.2s ease'
+}
