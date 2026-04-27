@@ -8,6 +8,7 @@ import {
   Environment
 } from '@react-three/drei'
 import * as THREE from 'three'
+import { Joystick } from 'react-joystick-component'
 
 // Components
 import { Model } from './Female'
@@ -77,7 +78,7 @@ function RadarLogic({ playerRef, monsterRef, setDots, monsterActive }) {
 // ---------------- GAME SYSTEMS ----------------
 function GameSystems({ 
   isAiming, modelRef, monsterRef, bullets, setBullets, 
-  monsterActive, setMonsterActive, setMonsterDead 
+  monsterActive, setMonsterActive, setMonsterDead, moveDirRef, isRunningRef 
 }) {
   const { camera, gl } = useThree();
   const rotation = useRef({ yaw: 0, pitch: 0 });
@@ -85,10 +86,8 @@ function GameSystems({
   useEffect(() => {
     const handleMouseMove = (e) => {
       if (!isAiming) return;
-
       rotation.current.yaw -= e.movementX * 0.002;
       rotation.current.pitch -= e.movementY * 0.002;
-
       rotation.current.pitch = Math.max(-Math.PI / 3, Math.min(Math.PI / 6, rotation.current.pitch));
     };
 
@@ -101,7 +100,7 @@ function GameSystems({
     }
 
     return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, [isAiming]);
+  }, [isAiming, gl.domElement]);
 
   useFrame((state, delta) => {
     if (!modelRef.current) return;
@@ -111,60 +110,55 @@ function GameSystems({
     // ===== CAMERA + PLAYER ROTATION =====
     if (isAiming) {
       const offset = new THREE.Vector3(0.8, 1.8, 3.5);
-
       const rotMat = new THREE.Matrix4().makeRotationFromEuler(
         new THREE.Euler(rotation.current.pitch, rotation.current.yaw, 0, 'YXZ')
       );
-
       offset.applyMatrix4(rotMat);
 
       state.camera.position.lerp(playerPos.clone().add(offset), 0.2);
       state.camera.lookAt(playerPos.clone().setY(playerPos.y + 1.5));
 
-      // ✅ IMPORTANT: rotate player EXACTLY toward camera forward
-const forward = new THREE.Vector3();
-state.camera.getWorldDirection(forward);
+      const forward = new THREE.Vector3();
+      state.camera.getWorldDirection(forward);
+      forward.y = 0;
+      forward.normalize();
+      const target = playerPos.clone().add(forward);
+      modelRef.current.lookAt?.(target);
+      modelRef.current.rotateY?.(Math.PI);
+    }
 
-// Ignore vertical tilt
-forward.y = 0;
-forward.normalize();
-
-// Create look target
-const target = playerPos.clone().add(forward);
-
-// Make player LOOK at that target
-modelRef.current.lookAt?.(target);
-
-// OPTIONAL: Fix 180° flipped models (very common)
-modelRef.current.rotateY?.(Math.PI);
+    // ===== MOVEMENT UPDATE (JOYSTICK + KEYBOARD) =====
+    const cam = state.camera;
+    const forward = new THREE.Vector3(); cam.getWorldDirection(forward); forward.y = 0; forward.normalize();
+    const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+    
+    // Combine inputs from moveDirRef (which handles both Joystick and Keys)
+    const finalMove = new THREE.Vector3()
+      .addScaledVector(forward, -moveDirRef.current.z) 
+      .addScaledVector(right, moveDirRef.current.x);
+    
+    if (finalMove.length() > 0.01) {
+       modelRef.current.move(finalMove.normalize(), isRunningRef.current);
+    } else {
+       modelRef.current.move(new THREE.Vector3(0,0,0), false);
     }
 
     // ===== BULLET MOVEMENT =====
     if (bullets.length > 0) {
       const mPos = monsterRef.current?.getPosition();
-
       setBullets(prev =>
         prev.map(b => {
           const velocity = b.direction.clone().multiplyScalar(80 * delta);
-
           const newPos = b.position.clone().add(velocity);
-
           const newLife = b.life + delta;
 
-          // HIT DETECTION
           if (monsterActive && mPos && newPos.distanceTo(mPos) < 3.5) {
             setMonsterDead(true);
             setMonsterActive(false);
             return null;
           }
-
           if (newLife > 3.0) return null;
-
-          return {
-            ...b,
-            position: newPos,
-            life: newLife
-          };
+          return { ...b, position: newPos, life: newLife };
         }).filter(Boolean)
       );
     }
@@ -182,6 +176,7 @@ modelRef.current.rotateY?.(Math.PI);
     </group>
   );
 }
+
 // ---------------- MAIN COMPONENT ----------------
 export default function AvatarWorld() {
   const modelRef = useRef();
@@ -199,67 +194,40 @@ export default function AvatarWorld() {
   const moveDirRef = useRef(new THREE.Vector3(0, 0, 0));
   const isRunningRef = useRef(false);
 
-  // CORE BULLET SPAWN LOGIC
-const spawnBullet = useCallback(() => {
-  if (!cameraRef.current || !modelRef.current || !isAiming) return;
+  const spawnBullet = useCallback(() => {
+    if (!cameraRef.current || !modelRef.current || !isAiming) return;
+    const dir = new THREE.Vector3();
+    cameraRef.current.getWorldDirection(dir);
+    dir.y += 0.25;
+    dir.normalize();
 
-  const dir = new THREE.Vector3();
-  cameraRef.current.getWorldDirection(dir);
-  dir.y += 0.25;
-  dir.normalize();
-
-  let spawnPos = modelRef.current.getGunWorldPosition?.();
-
-  if (!spawnPos) {
-    const pPos = modelRef.current.getPosition();
-    spawnPos = pPos.clone()
-      .add(new THREE.Vector3(0, 1.6, 0))
-      .add(dir.clone().multiplyScalar(1.2));
-  }
-
-  setBullets(prev => [
-    ...prev,
-    {
-      id: Math.random(),
-      position: spawnPos.clone(),
-      direction: dir.clone(),
-      life: 0
+    let spawnPos = modelRef.current.getGunWorldPosition?.();
+    if (!spawnPos) {
+      const pPos = modelRef.current.getPosition();
+      spawnPos = pPos.clone().add(new THREE.Vector3(0, 1.6, 0)).add(dir.clone().multiplyScalar(1.2));
     }
-  ]);
-}, [isAiming]);
 
-  // Handle firing from mouse/button
+    setBullets(prev => [
+      ...prev,
+      { id: Math.random(), position: spawnPos.clone(), direction: dir.clone(), life: 0 }
+    ]);
+  }, [isAiming]);
+
   const handleFire = (e) => {
     if (e) e.preventDefault();
     if (!isAiming || gameOver || monsterDead) return;
-    
-    // Play the animation
     modelRef.current?.shoot();
-    // Spawn the physical bullet entity
     spawnBullet();
   };
 
   useEffect(() => {
-    // Attach trigger to mouse clicks when aiming
     const mousedown = (e) => { if (e.button === 0) handleFire(e); };
     if (isAiming) window.addEventListener('mousedown', mousedown);
     return () => window.removeEventListener('mousedown', mousedown);
   }, [isAiming, spawnBullet]);
 
-  // Movement System
+  // Keyboard Movement Integration
   useEffect(() => {
-    const updateMovement = () => {
-      if (!modelRef.current || !cameraRef.current) return;
-      const cam = cameraRef.current;
-      const forward = new THREE.Vector3(); cam.getWorldDirection(forward); forward.y = 0; forward.normalize();
-      const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
-      const finalMove = new THREE.Vector3()
-        .addScaledVector(forward, -moveDirRef.current.z)
-        .addScaledVector(right, moveDirRef.current.x);
-      
-      modelRef.current.move(finalMove.length() > 0 ? finalMove.normalize() : finalMove, isRunningRef.current);
-    }
-
     const keyDown = (e) => {
       if (e.code === 'KeyW') moveDirRef.current.z = -1;
       if (e.code === 'KeyS') moveDirRef.current.z = 1;
@@ -268,18 +236,16 @@ const spawnBullet = useCallback(() => {
       if (e.code === 'ShiftLeft') isRunningRef.current = true;
       if (e.code === 'Space') modelRef.current?.jump();
       if (e.code === 'KeyM') handleSummon();
-      updateMovement();
     }
     const keyUp = (e) => {
       if (['KeyW', 'KeyS'].includes(e.code)) moveDirRef.current.z = 0;
       if (['KeyA', 'KeyD'].includes(e.code)) moveDirRef.current.x = 0;
       if (e.code === 'ShiftLeft') isRunningRef.current = false;
-      updateMovement();
     }
     window.addEventListener('keydown', keyDown);
     window.addEventListener('keyup', keyUp);
     return () => { window.removeEventListener('keydown', keyDown); window.removeEventListener('keyup', keyUp); }
-  }, [dungeonStatus]);
+  }, []);
 
   const handleSummon = () => {
     if (dungeonStatus !== "closed") return;
@@ -314,12 +280,6 @@ const spawnBullet = useCallback(() => {
 
       <div style={ui}>
         <button onClick={handleGunOut} style={btn}>{isAiming ? "HOLSTER" : "DRAW WEAPON"}</button>
-        {/*<button 
-           onMouseDown={handleFire} 
-           style={{ ...btn, marginLeft: 10, background: isAiming ? 'rgba(255,0,0,0.8)' : '#222', borderColor: isAiming ? 'white' : 'red' }}
-        >
-          FIRE
-        </button>*/}
         <button onClick={handleSummon} style={{ ...btn, marginLeft: 10 }}>{dungeonStatus === "closed" ? "SUMMON" : "LIVE"}</button>
       </div>
 
@@ -337,6 +297,8 @@ const spawnBullet = useCallback(() => {
             isAiming={isAiming} modelRef={modelRef} monsterRef={monsterRef} 
             bullets={bullets} setBullets={setBullets} 
             monsterActive={monsterActive} setMonsterActive={setMonsterActive} setMonsterDead={setMonsterDead} 
+            moveDirRef={moveDirRef}
+            isRunningRef={isRunningRef}   
           />
           {monsterActive && (
              <Monster ref={monsterRef} active={monsterActive} playerRef={modelRef} setGameOver={setGameOver} scale={2.5} position={[0, -0.2, -40]} />
@@ -348,14 +310,34 @@ const spawnBullet = useCallback(() => {
         <ContactShadows opacity={0.8} scale={30} blur={2.5} far={10} />
         <OrbitControls enabled={!isAiming} enablePan={false} maxPolarAngle={Math.PI / 2.1} />
       </Canvas>
+
       {!gameOver && !monsterDead && (
-  <button
-    onMouseDown={handleFire}
-    style={fireBtn}
-  >
-    ●
-  </button>
-)}
+        <button onMouseDown={handleFire} style={fireBtn}>●</button>
+      )}
+
+      {!gameOver && !monsterDead && (
+        <div style={joystickContainer}>
+          <Joystick
+            size={100}
+            baseColor="rgba(255,255,255,0.1)"
+            stickColor="rgba(255,0,0,0.8)"
+            move={(e) => {
+              // x/y are provided by the component based on distance from center
+              // We map Y to Z because Three.js Z is forward/back
+              moveDirRef.current.x = (e.x || 0) / 50;
+              moveDirRef.current.z = -(e.y || 0) / 50; 
+              
+              // Simple "run" logic if stick is pushed far
+              const dist = Math.sqrt(e.x*e.x + e.y*e.y);
+              isRunningRef.current = dist > 40;
+            }}
+            stop={() => {
+              moveDirRef.current.set(0, 0, 0);
+              isRunningRef.current = false;
+            }}
+          />
+        </div>
+      )}
 
       <style>{`@keyframes sweep { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
@@ -372,24 +354,5 @@ const dotStyle = { position: 'absolute', width: 8, height: 8, borderRadius: '50%
 const crosshair = { position: 'absolute', top: '30%', left: '50%', width: 34, height: 34, border: '1px solid rgba(255, 255, 255, 0.5)', borderRadius: '50%', transform: 'translate(-50%, -50%)', zIndex: 100, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }
 const innerCross = { width: 4, height: 4, background: 'red', borderRadius: '50%', boxShadow: '0 0 5px red' }
 const overlayStyle = { position: 'absolute', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.95)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 1000, color: 'white', fontFamily: 'monospace' }
-const fireBtn = {
-  position: 'absolute',
-  bottom: 30,
-  right: 30,
-  width: 70,
-  height: 70,
-  borderRadius: '50%',
-  background: 'rgba(255, 0, 0, 0.35)',
-  border: '2px solid rgba(255,255,255,0.6)',
-  color: '#fff',
-  fontSize: '28px',
-  fontWeight: 'bold',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  cursor: 'pointer',
-  zIndex: 200,
-  backdropFilter: 'blur(6px)',
-  boxShadow: '0 0 15px rgba(255,0,0,0.6)',
-  transition: '0.2s ease'
-}
+const fireBtn = { position: 'absolute', bottom: 30, right: 30, width: 70, height: 70, borderRadius: '50%', background: 'rgba(255, 0, 0, 0.35)', border: '2px solid rgba(255,255,255,0.6)', color: '#fff', fontSize: '28px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 200, backdropFilter: 'blur(6px)', boxShadow: '0 0 15px rgba(255,0,0,0.6)', transition: '0.2s ease' }
+const joystickContainer = { position: 'absolute', bottom: 30, left: 30, zIndex: 200 }
