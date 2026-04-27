@@ -1,60 +1,93 @@
-import React, { useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from 'react'
-import { useGraph, useFrame } from '@react-three/fiber'
+import React, {
+  useRef,
+  useEffect,
+  useMemo,
+  forwardRef,
+  useImperativeHandle
+} from 'react'
+import { useFrame } from '@react-three/fiber'
 import { useGLTF, useAnimations } from '@react-three/drei'
 import { SkeletonUtils } from 'three-stdlib'
 import * as THREE from 'three'
 
-export const Monster = forwardRef(({ playerRef, active, ...props }, ref) => {
-  const group = useRef()
-  useImperativeHandle(ref, () => group.current)
+export const Monster = forwardRef(
+  ({ playerRef, setGameOver, active, ...props }, ref) => {
+    const group = useRef()
 
-  const { scene, animations } = useGLTF('/Monster1.glb')
-  const clone = useMemo(() => SkeletonUtils.clone(scene), [scene])
-  const { nodes, materials } = useGraph(clone)
-  const { actions } = useAnimations(animations, group)
+    const { scene, animations } = useGLTF('/Monster1.glb')
+    const clone = useMemo(() => SkeletonUtils.clone(scene), [scene])
+    const { actions } = useAnimations(animations, group)
 
-  useEffect(() => {
-    if (active && actions) {
-      const anim = actions[Object.keys(actions)[0]]
-      if (anim) anim.reset().fadeIn(0.5).play()
-    }
-  }, [active, actions])
+    const health = useRef(100)
 
-  useFrame((state, delta) => {
-    if (!active || !group.current || !playerRef.current) return
+    // ---------------- EXPOSE ----------------
+    useImperativeHandle(ref, () => ({
+      takeDamage: (dmg) => {
+        health.current -= dmg
+        return health.current <= 0
+      },
 
-    const monsterPos = group.current.position
-    const playerPos = new THREE.Vector3()
-    
-    // Check if we exposed the internal group in Female.js
-    const target = playerRef.current.group || playerRef.current
-    if (target.getWorldPosition) {
-      target.getWorldPosition(playerPos)
-    } else {
-      playerPos.copy(target.position)
-    }
+      getPosition: () => {
+        return group.current
+          ? group.current.getWorldPosition(new THREE.Vector3())
+          : new THREE.Vector3()
+      }
+    }))
 
-    const direction = new THREE.Vector3().subVectors(playerPos, monsterPos)
-    direction.y = 0 
-    const distance = direction.length()
+    // ---------------- RESET HEALTH ----------------
+    useEffect(() => {
+      if (active) {
+        health.current = 100
+      }
+    }, [active])
 
-    if (distance > 1.6) {
-      direction.normalize()
-      // Smooth linear translation
-      monsterPos.addScaledVector(direction, delta * 7) 
-      // Face the player directly without lerping rotation to avoid "slurring"
-      group.current.lookAt(playerPos.x, monsterPos.y, playerPos.z)
-    }
-  })
+    // ---------------- ANIMATION ----------------
+    useEffect(() => {
+      if (active && actions && Object.keys(actions).length > 0) {
+        const anim = actions[Object.keys(actions)[0]]
+        anim?.reset().fadeIn(0.5).play()
+      }
+    }, [active, actions])
 
-  if (!active) return null
+    // ---------------- AI ----------------
+    useFrame((_, delta) => {
+      // ✅ SAFETY CHECKS (VERY IMPORTANT)
+      if (!active || !group.current || !playerRef.current) return
 
-  return (
-    <group ref={group} {...props} dispose={null}>
-      <group name="Armature" rotation={[Math.PI / 2, 0, 0]} scale={0.01}>
-        <primitive object={nodes.mixamorigHips} />
-        <skinnedMesh geometry={nodes.MutantMesh.geometry} material={materials.mutant_M} skeleton={nodes.MutantMesh.skeleton} castShadow />
+      const mPos = group.current.position
+
+      // ✅ CORRECT WAY (uses your Female.jsx API)
+      const pPos = playerRef.current.getPosition()
+
+      if (!pPos) return
+
+      const dir = new THREE.Vector3().subVectors(pPos, mPos)
+      dir.y = 0
+
+      const dist = dir.length()
+
+      // 💀 GAME OVER
+      if (dist < 1.5) {
+        setGameOver(true)
+        return
+      }
+
+      // 🏃 CHASE PLAYER
+      if (dist > 1.5) {
+        dir.normalize()
+
+        mPos.addScaledVector(dir, delta * 7)
+
+        group.current.lookAt(pPos.x, mPos.y, pPos.z)
+      }
+    })
+
+    if (!active) return null
+
+    return (
+      <group ref={group} {...props} dispose={null}>
+        <primitive object={clone} scale={0.5} />
       </group>
-    </group>
-  )
-})
+    )
+  }
+)

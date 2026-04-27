@@ -107,10 +107,45 @@ export default function AvatarWorld() {
   const [dots, setDots] = useState({ p: { x: 0, y: 0 }, m: { x: 0, y: 0 } })
   const [monsterActive, setMonsterActive] = useState(false)
   const [dungeonStatus, setDungeonStatus] = useState("closed") 
+  const [bullets, setBullets] = useState([]) 
+  const [gameOver, setGameOver] = useState(false)
 
   const moveDirRef = useRef(new THREE.Vector3(0, 0, 0))
   const isRunningRef = useRef(false)
 
+
+  useEffect(() => {
+  const interval = setTimeout(() => {
+    if (!modelRef.current) return
+
+    modelRef.current.setShootCallback(() => {
+      if (!cameraRef.current || !modelRef.current) return
+
+      const dir = new THREE.Vector3()
+      cameraRef.current.getWorldDirection(dir)
+      dir.y = 0
+      dir.normalize()
+
+      const pos = modelRef.current.getGunWorldPosition()
+
+      if (!pos) return
+
+      // spawn slightly in front of gun (IMPORTANT FIX)
+      const spawnPos = pos.clone().add(dir.clone().multiplyScalar(1))
+
+      setBullets(prev => [
+        ...prev,
+        {
+          id: Math.random(),
+          position: spawnPos,
+          direction: dir.clone()
+        }
+      ])
+    })
+  }, 300)
+
+  return () => clearTimeout(interval)
+}, [])
   // ---------------- KEYBOARD LOGIC ----------------
   useEffect(() => {
     const updateMovement = () => {
@@ -225,7 +260,13 @@ export default function AvatarWorld() {
 
       {/* BUTTON UI */}
       <div style={ui}>
-        <button onClick={() => modelRef.current?.gun()} style={btn}>DRAW WEAPON</button>
+<button onClick={() => modelRef.current?.drawGun()} style={btn}>
+  DRAW WEAPON
+</button>
+
+<button onClick={() => modelRef.current?.shoot()} style={{ ...btn, marginLeft: '10px' }}>
+  SHOOT
+</button>
         <button 
           onClick={handleSummon} 
           style={{ ...btn, marginLeft: '10px', borderColor: dungeonStatus === 'opening' ? 'orange' : 'red' }}
