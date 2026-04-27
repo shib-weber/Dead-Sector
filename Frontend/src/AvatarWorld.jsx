@@ -11,7 +11,7 @@ import * as THREE from 'three'
 import { Joystick } from 'react-joystick-component'
 
 // Components
-import { Model } from './Female'
+import { Model } from './Male'
 import { Monster } from './Monster1'
 
 // ---------------- LOADER ----------------
