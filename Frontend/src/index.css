@@ -1,1 +1,17 @@
 @import "tailwindcss";
+@media screen and (orientation: portrait) {
+  body::after {
+    content: "Please rotate your device to landscape to play";
+    position: fixed;
+    inset: 0;
+    background: black;
+    color: red;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    font-family: monospace;
+    padding: 20px;
+    text-align: center;
+  }
+}

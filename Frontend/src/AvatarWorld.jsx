@@ -43,20 +43,46 @@ function FlowingLava() {
 
 // ---------------- GROUND ----------------
 function Ground() {
+  // Define the number of rings and the gap between them
+  const numRings = 4;
+  const ringGap = 2; // Distance between each hexagonal ring
+  const baseRadius = 4.8; // Starting inner radius
+
   return (
     <group position={[0, -1.5, 0]}>
+      {/* Main Concrete Platform */}
       <mesh receiveShadow>
         <cylinderGeometry args={[15, 17, 2.5, 64]} />
-        <meshStandardMaterial color="#050505" roughness={1} />
+        <meshStandardMaterial color="#555252" roughness={1} metalness={0.5} />
       </mesh>
-      {[...Array(50)].map((_, i) => (
-        <mesh key={i} position={[(Math.random() - 0.5) * 28, 1.3, (Math.random() - 0.5) * 28]}>
-          <boxGeometry args={[Math.random() * 2, 0.05, 0.1]} />
-          <meshStandardMaterial emissive="#ff0000" emissiveIntensity={1.5} color="#000" />
-        </mesh>
-      ))}
+
+      {/* Nested Hexagonal Rings */}
+      {[...Array(numRings)].map((_, i) => {
+        const radius = baseRadius + i * ringGap;
+        return (
+          <mesh 
+            key={`hex-${i}`} 
+            rotation={[-Math.PI / 2, 0, 0]} 
+            position={[0, 1.27, 0]}
+          >
+            {/* 6 segments creates the hexagonal shape */}
+            <ringGeometry args={[radius, radius + 0.2, 6]} />
+            <meshStandardMaterial 
+              emissive="#ff0000" 
+              emissiveIntensity={5 - i} // Fades intensity for outer rings
+              color="#000" 
+            />
+          </mesh>
+        );
+      })}
+
+      {/* Outer Border Glow */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 1.27, 0]}>
+        <ringGeometry args={[14.5, 14.7, 64]} />
+        <meshStandardMaterial emissive="#0022ff" emissiveIntensity={3} color="#000" />
+      </mesh>
     </group>
-  )
+  );
 }
 
 // ---------------- RADAR ----------------
