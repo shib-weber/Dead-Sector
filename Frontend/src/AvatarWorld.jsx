@@ -1,5 +1,5 @@
-import React, { Suspense, useRef, useEffect, useState } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
+import React, { Suspense, useRef, useEffect, useState, useCallback } from 'react'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import {
   OrbitControls,
   ContactShadows,
@@ -17,14 +17,14 @@ import { Monster } from './Monster1'
 function Loader() {
   return (
     <Html center>
-      <div style={{ color: 'red', fontWeight: 'bold', fontFamily: 'monospace', textAlign: 'center' }}>
-        LOADING ASSETS...
+      <div style={{ color: 'red', fontWeight: 'bold', fontFamily: 'monospace', textAlign: 'center', width: '200px', background: 'black', padding: '10px', border: '1px solid red' }}>
+        SYSTEM BOOTING...
       </div>
     </Html>
   )
 }
 
-// ---------------- FLOWING LAVA ----------------
+// ---------------- LAVA ----------------
 function FlowingLava() {
   const matRef = useRef()
   useFrame(({ clock }) => {
@@ -32,16 +32,10 @@ function FlowingLava() {
       matRef.current.emissiveIntensity = 0.6 + Math.sin(clock.elapsedTime * 2) * 0.2
     }
   })
-
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1, 0]}>
-      <circleGeometry args={[18.5, 128]} />
-      <meshStandardMaterial
-        ref={matRef}
-        color="#330000"
-        emissive="#ff2200"
-        emissiveIntensity={0.6} // reduced from 2+
-      />
+      <circleGeometry args={[20, 128]} />
+      <meshStandardMaterial ref={matRef} color="#200" emissive="#ff2200" emissiveIntensity={0.6} />
     </mesh>
   )
 }
@@ -52,331 +46,321 @@ function Ground() {
     <group position={[0, -1.5, 0]}>
       <mesh receiveShadow>
         <cylinderGeometry args={[15, 17, 2.5, 64]} />
-        <meshStandardMaterial color="#1f0101" roughness={1} />
+        <meshStandardMaterial color="#050505" roughness={1} />
       </mesh>
-
-      {[...Array(40)].map((_, i) => (
-        <mesh
-          key={i}
-          position={[
-            (Math.random() - 0.5) * 20,
-            1.3,
-            (Math.random() - 0.5) * 20
-          ]}
-        >
-          <boxGeometry args={[Math.random() * 3, 0.05, 0.2]} />
-          <meshStandardMaterial
-            emissive="#d81515"
-            emissiveIntensity={2}
-            color="#000"
-          />
+      {[...Array(50)].map((_, i) => (
+        <mesh key={i} position={[(Math.random() - 0.5) * 28, 1.3, (Math.random() - 0.5) * 28]}>
+          <boxGeometry args={[Math.random() * 2, 0.05, 0.1]} />
+          <meshStandardMaterial emissive="#ff0000" emissiveIntensity={1.5} color="#000" />
         </mesh>
       ))}
     </group>
   )
 }
 
-// ---------------- RADAR LOGIC ----------------
+// ---------------- RADAR ----------------
 function RadarLogic({ playerRef, monsterRef, setDots, monsterActive }) {
   useFrame(() => {
     if (playerRef.current) {
-      const zoom = 2.0 
-      const pPos = playerRef.current.position || new THREE.Vector3()
-      
-      let mData = { x: 0, y: 0 }
+      const pPos = playerRef.current.getPosition?.() || new THREE.Vector3();
+      let mData = { x: 0, y: 0 };
       if (monsterActive && monsterRef.current) {
-        const mPos = monsterRef.current.position || new THREE.Vector3()
-        mData = { x: mPos.x * zoom, y: mPos.z * zoom }
+        const mPos = monsterRef.current.getPosition?.() || new THREE.Vector3();
+        mData = { x: (mPos.x - pPos.x) * 2.5, y: (mPos.z - pPos.z) * 2.5 };
       }
-
-      setDots({
-        p: { x: pPos.x * zoom, y: pPos.z * zoom },
-        m: mData
-      })
+      setDots({ p: { x: 0, y: 0 }, m: mData });
     }
-  })
-  return null
+  });
+  return null;
 }
 
+// ---------------- GAME SYSTEMS ----------------
+function GameSystems({ 
+  isAiming, modelRef, monsterRef, bullets, setBullets, 
+  monsterActive, setMonsterActive, setMonsterDead 
+}) {
+  const { camera, gl } = useThree();
+  const rotation = useRef({ yaw: 0, pitch: 0 });
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isAiming) return;
+
+      rotation.current.yaw -= e.movementX * 0.002;
+      rotation.current.pitch -= e.movementY * 0.002;
+
+      rotation.current.pitch = Math.max(-Math.PI / 3, Math.min(Math.PI / 6, rotation.current.pitch));
+    };
+
+    if (isAiming) {
+      gl.domElement.requestPointerLock();
+      window.addEventListener('mousemove', handleMouseMove);
+    } else {
+      if (document.pointerLockElement === gl.domElement) document.exitPointerLock();
+      window.removeEventListener('mousemove', handleMouseMove);
+    }
+
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, [isAiming]);
+
+  useFrame((state, delta) => {
+    if (!modelRef.current) return;
+
+    const playerPos = modelRef.current.getPosition();
+
+    // ===== CAMERA + PLAYER ROTATION =====
+    if (isAiming) {
+      const offset = new THREE.Vector3(0.8, 1.8, 3.5);
+
+      const rotMat = new THREE.Matrix4().makeRotationFromEuler(
+        new THREE.Euler(rotation.current.pitch, rotation.current.yaw, 0, 'YXZ')
+      );
+
+      offset.applyMatrix4(rotMat);
+
+      state.camera.position.lerp(playerPos.clone().add(offset), 0.2);
+      state.camera.lookAt(playerPos.clone().setY(playerPos.y + 1.5));
+
+      // ✅ IMPORTANT: rotate player EXACTLY toward camera forward
+const forward = new THREE.Vector3();
+state.camera.getWorldDirection(forward);
+
+// Ignore vertical tilt
+forward.y = 0;
+forward.normalize();
+
+// Create look target
+const target = playerPos.clone().add(forward);
+
+// Make player LOOK at that target
+modelRef.current.lookAt?.(target);
+
+// OPTIONAL: Fix 180° flipped models (very common)
+modelRef.current.rotateY?.(Math.PI);
+    }
+
+    // ===== BULLET MOVEMENT =====
+    if (bullets.length > 0) {
+      const mPos = monsterRef.current?.getPosition();
+
+      setBullets(prev =>
+        prev.map(b => {
+          const velocity = b.direction.clone().multiplyScalar(80 * delta);
+
+          const newPos = b.position.clone().add(velocity);
+
+          const newLife = b.life + delta;
+
+          // HIT DETECTION
+          if (monsterActive && mPos && newPos.distanceTo(mPos) < 3.5) {
+            setMonsterDead(true);
+            setMonsterActive(false);
+            return null;
+          }
+
+          if (newLife > 3.0) return null;
+
+          return {
+            ...b,
+            position: newPos,
+            life: newLife
+          };
+        }).filter(Boolean)
+      );
+    }
+  });
+
+  return (
+    <group>
+      {bullets.map((b) => (
+        <mesh key={b.id} position={b.position}>
+          <sphereGeometry args={[0.15, 16, 16]} />
+          <meshBasicMaterial color="#ffff00" />
+          <pointLight color="#ffaa00" intensity={15} distance={10} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
 // ---------------- MAIN COMPONENT ----------------
 export default function AvatarWorld() {
-  const modelRef = useRef()
-  const monsterRef = useRef()
-  const cameraRef = useRef()
+  const modelRef = useRef();
+  const monsterRef = useRef();
+  const cameraRef = useRef();
   
-  const [dots, setDots] = useState({ p: { x: 0, y: 0 }, m: { x: 0, y: 0 } })
-  const [monsterActive, setMonsterActive] = useState(false)
-  const [dungeonStatus, setDungeonStatus] = useState("closed") 
-  const [bullets, setBullets] = useState([]) 
-  const [gameOver, setGameOver] = useState(false)
+  const [dots, setDots] = useState({ p: { x: 0, y: 0 }, m: { x: 0, y: 0 } });
+  const [monsterActive, setMonsterActive] = useState(false);
+  const [dungeonStatus, setDungeonStatus] = useState("closed"); 
+  const [bullets, setBullets] = useState([]); 
+  const [gameOver, setGameOver] = useState(false);
+  const [isAiming, setIsAiming] = useState(false);
+  const [monsterDead, setMonsterDead] = useState(false);
 
-  const moveDirRef = useRef(new THREE.Vector3(0, 0, 0))
-  const isRunningRef = useRef(false)
+  const moveDirRef = useRef(new THREE.Vector3(0, 0, 0));
+  const isRunningRef = useRef(false);
 
+  // CORE BULLET SPAWN LOGIC
+const spawnBullet = useCallback(() => {
+  if (!cameraRef.current || !modelRef.current || !isAiming) return;
+
+  const dir = new THREE.Vector3();
+  cameraRef.current.getWorldDirection(dir);
+  dir.y += 0.25;
+  dir.normalize();
+
+  let spawnPos = modelRef.current.getGunWorldPosition?.();
+
+  if (!spawnPos) {
+    const pPos = modelRef.current.getPosition();
+    spawnPos = pPos.clone()
+      .add(new THREE.Vector3(0, 1.6, 0))
+      .add(dir.clone().multiplyScalar(1.2));
+  }
+
+  setBullets(prev => [
+    ...prev,
+    {
+      id: Math.random(),
+      position: spawnPos.clone(),
+      direction: dir.clone(),
+      life: 0
+    }
+  ]);
+}, [isAiming]);
+
+  // Handle firing from mouse/button
+  const handleFire = (e) => {
+    if (e) e.preventDefault();
+    if (!isAiming || gameOver || monsterDead) return;
+    
+    // Play the animation
+    modelRef.current?.shoot();
+    // Spawn the physical bullet entity
+    spawnBullet();
+  };
 
   useEffect(() => {
-  const interval = setTimeout(() => {
-    if (!modelRef.current) return
+    // Attach trigger to mouse clicks when aiming
+    const mousedown = (e) => { if (e.button === 0) handleFire(e); };
+    if (isAiming) window.addEventListener('mousedown', mousedown);
+    return () => window.removeEventListener('mousedown', mousedown);
+  }, [isAiming, spawnBullet]);
 
-    modelRef.current.setShootCallback(() => {
-      if (!cameraRef.current || !modelRef.current) return
-
-      const dir = new THREE.Vector3()
-      cameraRef.current.getWorldDirection(dir)
-      dir.y = 0
-      dir.normalize()
-
-      const pos = modelRef.current.getGunWorldPosition()
-
-      if (!pos) return
-
-      // spawn slightly in front of gun (IMPORTANT FIX)
-      const spawnPos = pos.clone().add(dir.clone().multiplyScalar(1))
-
-      setBullets(prev => [
-        ...prev,
-        {
-          id: Math.random(),
-          position: spawnPos,
-          direction: dir.clone()
-        }
-      ])
-    })
-  }, 300)
-
-  return () => clearTimeout(interval)
-}, [])
-  // ---------------- KEYBOARD LOGIC ----------------
+  // Movement System
   useEffect(() => {
     const updateMovement = () => {
-      if (!modelRef.current || !cameraRef.current) return
-      
-      const cam = cameraRef.current
-      const forward = new THREE.Vector3()
-      cam.getWorldDirection(forward)
-      forward.y = 0
-      forward.normalize()
-
-      const right = new THREE.Vector3()
-      right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize()
-
+      if (!modelRef.current || !cameraRef.current) return;
+      const cam = cameraRef.current;
+      const forward = new THREE.Vector3(); cam.getWorldDirection(forward); forward.y = 0; forward.normalize();
+      const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
       const finalMove = new THREE.Vector3()
-      finalMove.addScaledVector(forward, -moveDirRef.current.z)
-      finalMove.addScaledVector(right, moveDirRef.current.x)
-
-      if (finalMove.length() > 0) finalMove.normalize()
-      modelRef.current.move(finalMove, isRunningRef.current)
+        .addScaledVector(forward, -moveDirRef.current.z)
+        .addScaledVector(right, moveDirRef.current.x);
+      
+      modelRef.current.move(finalMove.length() > 0 ? finalMove.normalize() : finalMove, isRunningRef.current);
     }
 
     const keyDown = (e) => {
-      switch (e.code) {
-        case 'KeyW': case 'ArrowUp': moveDirRef.current.z = -1; break
-        case 'KeyS': case 'ArrowDown': moveDirRef.current.z = 1; break
-        case 'KeyA': case 'ArrowLeft': moveDirRef.current.x = -1; break
-        case 'KeyD': case 'ArrowRight': moveDirRef.current.x = 1; break
-        case 'ShiftLeft': case 'ShiftRight': isRunningRef.current = true; break
-        case 'Space': modelRef.current?.jump(); break
-        case 'KeyM': handleSummon(); break
-      }
-      updateMovement()
+      if (e.code === 'KeyW') moveDirRef.current.z = -1;
+      if (e.code === 'KeyS') moveDirRef.current.z = 1;
+      if (e.code === 'KeyA') moveDirRef.current.x = -1;
+      if (e.code === 'KeyD') moveDirRef.current.x = 1;
+      if (e.code === 'ShiftLeft') isRunningRef.current = true;
+      if (e.code === 'Space') modelRef.current?.jump();
+      if (e.code === 'KeyM') handleSummon();
+      updateMovement();
     }
-
     const keyUp = (e) => {
-      switch (e.code) {
-        case 'KeyW': case 'ArrowUp': 
-        case 'KeyS': case 'ArrowDown': moveDirRef.current.z = 0; break
-        case 'KeyA': case 'ArrowLeft':
-        case 'KeyD': case 'ArrowRight': moveDirRef.current.x = 0; break
-        case 'ShiftLeft': case 'ShiftRight': isRunningRef.current = false; break
-      }
-      updateMovement()
+      if (['KeyW', 'KeyS'].includes(e.code)) moveDirRef.current.z = 0;
+      if (['KeyA', 'KeyD'].includes(e.code)) moveDirRef.current.x = 0;
+      if (e.code === 'ShiftLeft') isRunningRef.current = false;
+      updateMovement();
     }
-
-    window.addEventListener('keydown', keyDown)
-    window.addEventListener('keyup', keyUp)
-    return () => {
-      window.removeEventListener('keydown', keyDown)
-      window.removeEventListener('keyup', keyUp)
-    }
-  }, [dungeonStatus])
-
-  // ---------------- JOYSTICK ----------------
-  const handleJoystickMove = (e) => {
-    const touch = e.touches ? e.touches[0] : e
-    const rect = e.currentTarget.getBoundingClientRect()
-    const centerX = rect.left + rect.width / 2
-    const centerY = rect.top + rect.height / 2
-
-    const x = (touch.clientX - centerX) / (rect.width / 2)
-    const y = (touch.clientY - centerY) / (rect.height / 2)
-
-    if (!cameraRef.current) return
-    const cam = cameraRef.current
-
-    const forward = new THREE.Vector3()
-    cam.getWorldDirection(forward)
-    forward.y = 0
-    forward.normalize()
-
-    const right = new THREE.Vector3()
-    right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize()
-
-    const moveDir = new THREE.Vector3()
-    moveDir.addScaledVector(forward, -y)
-    moveDir.addScaledVector(right, x)
-
-    if (moveDir.length() > 0.1) {
-      moveDir.normalize()
-      modelRef.current?.move(moveDir, false)
-    }
-  }
-
-  const handleJoystickEnd = () => {
-    modelRef.current?.move(new THREE.Vector3(0, 0, 0), false)
-  }
+    window.addEventListener('keydown', keyDown);
+    window.addEventListener('keyup', keyUp);
+    return () => { window.removeEventListener('keydown', keyDown); window.removeEventListener('keyup', keyUp); }
+  }, [dungeonStatus]);
 
   const handleSummon = () => {
-    if (dungeonStatus !== "closed") return
-    setDungeonStatus("opening")
-    setTimeout(() => {
-      setMonsterActive(true)
-      setDungeonStatus("active")
-    }, 2000)
+    if (dungeonStatus !== "closed") return;
+    setDungeonStatus("opening"); 
+    setTimeout(() => { 
+      setMonsterActive(true); 
+      setDungeonStatus("active"); 
+    }, 1500);
+  }
+
+  const handleGunOut = () => {
+    if (gameOver || monsterDead) return;
+    setIsAiming(!isAiming);
+    modelRef.current?.drawGun(); 
   }
 
   return (
-    <div style={{ width: '100vw', height: '100vh', background: '#000', position: 'relative', overflow: 'hidden', touchAction: 'none' }}>
+    <div style={{ width: '100vw', height: '100vh', background: '#000', position: 'relative', overflow: 'hidden' }}>
       
-      {/* RADAR UI */}
+      {gameOver && <div style={overlayStyle}><h1 style={{color: 'red', fontSize: '3rem'}}>WASTED</h1><button onClick={() => window.location.reload()} style={btn}>RETRY</button></div>}
+      {monsterDead && <div style={overlayStyle}><h1 style={{color: '#0f0', fontSize: '3rem'}}>TARGET NEUTRALIZED</h1><button onClick={() => window.location.reload()} style={btn}>NEXT MISSION</button></div>}
+
+      {isAiming && !gameOver && !monsterDead && <div style={crosshair}><div style={innerCross} /></div>}
+
       <div style={radarContainer}>
         <div style={radarCircle}>
           <div style={radarSweep} />
-          <div style={{ ...dotStyle, background: '#00ff00', left: `calc(50% + ${dots.p.x}px)`, top: `calc(50% + ${dots.p.y}px)` }} />
-          {monsterActive && (
-            <div style={{ ...dotStyle, background: '#ff0000', left: `calc(50% + ${dots.m.x}px)`, top: `calc(50% + ${dots.m.y}px)` }} />
-          )}
+          <div style={{ ...dotStyle, background: '#0f0', left: '50%', top: '50%', border: '1px solid white' }} />
+          {monsterActive && <div style={{ ...dotStyle, background: '#f00', left: `calc(50% + ${dots.m.x}px)`, top: `calc(50% + ${dots.m.y}px)`, boxShadow: '0 0 10px red' }} />}
         </div>
       </div>
 
-      {/* BUTTON UI */}
       <div style={ui}>
-<button onClick={() => modelRef.current?.drawGun()} style={btn}>
-  DRAW WEAPON
-</button>
-
-<button onClick={() => modelRef.current?.shoot()} style={{ ...btn, marginLeft: '10px' }}>
-  SHOOT
-</button>
+        <button onClick={handleGunOut} style={btn}>{isAiming ? "HOLSTER" : "DRAW WEAPON"}</button>
         <button 
-          onClick={handleSummon} 
-          style={{ ...btn, marginLeft: '10px', borderColor: dungeonStatus === 'opening' ? 'orange' : 'red' }}
+           onMouseDown={handleFire} 
+           style={{ ...btn, marginLeft: 10, background: isAiming ? 'rgba(255,0,0,0.8)' : '#222', borderColor: isAiming ? 'white' : 'red' }}
         >
-          {dungeonStatus === "closed" && "OPEN DUNGEON (M)"}
-          {dungeonStatus === "opening" && "DOOR OPENING..."}
-          {dungeonStatus === "active" && "MONSTER UNLEASHED"}
+          FIRE
         </button>
+        <button onClick={handleSummon} style={{ ...btn, marginLeft: 10 }}>{dungeonStatus === "closed" ? "SUMMON" : "LIVE"}</button>
       </div>
 
-      {/* JOYSTICK */}
-      <div 
-        style={joystick} 
-        onPointerMove={handleJoystickMove}
-        onPointerUp={handleJoystickEnd}
-        onPointerLeave={handleJoystickEnd}
-      >
-        <div style={joystickInner} />
-      </div>
-
-      {/* CANVAS */}
-      <Canvas
-        shadows
-        camera={{ position: [0, 8, 15], fov: 50 }}
-        onCreated={({ camera, gl }) => {
-          cameraRef.current = camera
-          gl.toneMapping = THREE.ACESFilmicToneMapping
-          gl.toneMappingExposure = 1.6
-          gl.outputColorSpace = THREE.SRGBColorSpace
-        }}
-      >
-        <color attach="background" args={['#202020']} />
-
-        {/* 🔥 ONLY CHANGE: BETTER LIGHTING */}
-        <ambientLight intensity={1.2} />
-        <hemisphereLight skyColor={"#ffffff"} groundColor={"#444"} intensity={1} />
-        <directionalLight position={[10, 15, 10]} intensity={2} castShadow />
-        <directionalLight position={[-10, 10, -10]} intensity={1.2} />
-
-        <Environment preset="city" />
-
-        <Stars radius={300} depth={60} count={15000} factor={6} fade speed={1} />
+      <Canvas shadows camera={{ position: [0, 5, 10], fov: 45 }} onCreated={({ camera }) => { cameraRef.current = camera }}>
+        <color attach="background" args={['#020000']} />
+        <ambientLight intensity={0.4} />
+        <directionalLight position={[10, 20, 10]} intensity={1.5} castShadow shadow-mapSize={[2048, 2048]} />
+        <Environment preset="night" />
+        <Stars radius={150} depth={50} count={7000} factor={4} fade speed={1} />
 
         <Suspense fallback={<Loader />}>
-          <Model ref={modelRef} scale={1.8} position={[0, -0.2, 0]} />
-
-          <RadarLogic 
-            playerRef={modelRef} 
-            monsterRef={monsterRef} 
-            setDots={setDots} 
-            monsterActive={monsterActive} 
+          <Model ref={modelRef} scale={1.8} position={[0, -0.2, 0]} isAiming={isAiming} />
+          <RadarLogic playerRef={modelRef} monsterRef={monsterRef} setDots={setDots} monsterActive={monsterActive} />
+          <GameSystems 
+            isAiming={isAiming} modelRef={modelRef} monsterRef={monsterRef} 
+            bullets={bullets} setBullets={setBullets} 
+            monsterActive={monsterActive} setMonsterActive={setMonsterActive} setMonsterDead={setMonsterDead} 
           />
-
           {monsterActive && (
-            <Monster 
-              ref={monsterRef} 
-              active={monsterActive} 
-              playerRef={modelRef} 
-              scale={4.5}
-              position={[0, -0.2, -45]} 
-            />
+             <Monster ref={monsterRef} active={monsterActive} playerRef={modelRef} setGameOver={setGameOver} scale={2.5} position={[0, -0.2, -40]} />
           )}
         </Suspense>
 
         <Ground />
         <FlowingLava />
-        <ContactShadows opacity={0.6} scale={30} blur={2} far={10} />
-        <OrbitControls enablePan={false} maxPolarAngle={Math.PI / 2.1} />
+        <ContactShadows opacity={0.8} scale={30} blur={2.5} far={10} />
+        <OrbitControls enabled={!isAiming} enablePan={false} maxPolarAngle={Math.PI / 2.1} />
       </Canvas>
 
-      <style>{`
-        @keyframes sweep {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
+      <style>{`@keyframes sweep { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 }
 
-// ---------------- STYLES (UNCHANGED) ----------------
-const ui = { position: 'absolute', top: 30, left: 30, zIndex: 10 }
-const btn = { padding: '10px 20px', background: 'rgba(30,0,0,0.8)', color: 'white', border: '2px solid red', cursor: 'pointer', fontWeight: 'bold' }
-
-const joystick = {
-  position: 'absolute', bottom: 50, left: 50, width: 120, height: 120,
-  borderRadius: '50%', border: '2px solid rgba(255,0,0,0.5)',
-  background: 'rgba(255,0,0,0.1)', zIndex: 10, touchAction: 'none',
-  display: 'flex', alignItems: 'center', justifyContent: 'center'
-}
-
-const joystickInner = { width: 40, height: 40, borderRadius: '50%', background: 'red', opacity: 0.6 }
-
-const radarContainer = {
-  position: 'absolute', top: '20px', right: '20px', zIndex: 100,
-  padding: '10px', background: 'rgba(0, 0, 0, 0.7)', borderRadius: '10px', border: '1px solid #333'
-}
-
-const radarCircle = {
-  position: 'relative', width: '140px', height: '140px', borderRadius: '50%',
-  border: '2px solid #004400', background: 'radial-gradient(circle, #001100 0%, #000 100%)', overflow: 'hidden'
-}
-
-const radarSweep = {
-  position: 'absolute', width: '100%', height: '100%',
-  background: 'conic-gradient(from 0deg, rgba(0,255,0,0.3), transparent 90deg)',
-  borderRadius: '50%', animation: 'sweep 3s linear infinite'
-}
-
-const dotStyle = {
-  position: 'absolute', width: '8px', height: '8px', borderRadius: '50%',
-  transform: 'translate(-50%, -50%)', transition: 'all 0.1s linear'
-}
+// ---------------- STYLES ----------------
+const ui = { position: 'absolute', top: 30, left: 30, zIndex: 10, display: 'flex' }
+const btn = { padding: '12px 20px', background: '#000', color: 'white', border: '2px solid red', cursor: 'pointer', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }
+const radarContainer = { position: 'absolute', top: 20, right: 20, zIndex: 100, padding: 10, background: 'rgba(0,0,0,0.85)', borderRadius: '50%', border: '1px solid #333' }
+const radarCircle = { position: 'relative', width: 120, height: 120, borderRadius: '50%', border: '2px solid #040', background: 'radial-gradient(circle, #001100 0%, #000 100%)', overflow: 'hidden' }
+const radarSweep = { position: 'absolute', width: '100%', height: '100%', background: 'conic-gradient(from 0deg, rgba(0,255,0,0.2), transparent 90deg)', animation: 'sweep 3s linear infinite' }
+const dotStyle = { position: 'absolute', width: 8, height: 8, borderRadius: '50%', transform: 'translate(-50%, -50%)' }
+const crosshair = { position: 'absolute', top: '30%', left: '50%', width: 34, height: 34, border: '1px solid rgba(255, 255, 255, 0.5)', borderRadius: '50%', transform: 'translate(-50%, -50%)', zIndex: 100, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }
+const innerCross = { width: 4, height: 4, background: 'red', borderRadius: '50%', boxShadow: '0 0 5px red' }
+const overlayStyle = { position: 'absolute', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.95)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 1000, color: 'white', fontFamily: 'monospace' }

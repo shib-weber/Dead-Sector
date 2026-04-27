@@ -26,6 +26,9 @@ export const Model = forwardRef((props, ref) => {
   const shootCallback = useRef(() => {})
   const gunEquipped = useRef(false)
 
+  // ✅ ADD THIS (missing before)
+  const isShooting = useRef(false)
+
   // ---------------- ANIM MAP ----------------
   const animMap = useMemo(() => {
     const map = {}
@@ -36,42 +39,42 @@ export const Model = forwardRef((props, ref) => {
       if (name.includes('run')) map.run = n
       if (name.includes('jumpimg')) map.jump = n
       if (name.includes('gun')) map.gun = n
-      if (name.includes('shoot')) map.shoot = n
+      if (name.includes('shoot')) map.shoot = n 
     })
     return map
   }, [names])
 
   // ---------------- PLAY ----------------
-const playAnim = (name, loop = true, lock = false) => {
-  const next = actions[name];
-  if (!next) return;
-  
-  // If we are playing 'shoot', we allow it to interrupt itself for rapid fire
-  if (currentAction.current === next && name !== animMap.shoot) return;
+  const playAnim = (name, loop = true, lock = false) => {
+    const next = actions[name]
+    if (!next) return
 
-  currentAction.current?.fadeOut(0.2);
+    if (currentAction.current === next && name !== animMap.shoot) return
 
-  next.reset().fadeIn(0.1)
-    .setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce)
-    .play();
+    currentAction.current?.fadeOut(0.2)
 
-  next.clampWhenFinished = !loop;
-  currentAction.current = next;
-  isLocked.current = lock;
+    next
+      .reset()
+      .fadeIn(0.1)
+      .setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce)
+      .play()
 
-  // Cleanup previous listeners
-  mixer.removeEventListener('finished', onFinish);
-  if (!loop) {
-    mixer.addEventListener('finished', onFinish);
+    next.clampWhenFinished = !loop
+    currentAction.current = next
+    isLocked.current = lock
+
+    mixer.removeEventListener('finished', onFinish)
+    if (!loop) {
+      mixer.addEventListener('finished', onFinish)
+    }
   }
-};
 
   const onFinish = () => {
     isLocked.current = false
+    isShooting.current = false // ✅ release shooting lock
     playAnim(animMap.idle)
   }
 
-  
   // ---------------- ATTACH GUN ----------------
   useEffect(() => {
     if (!group.current || !gunScene) return
@@ -97,14 +100,15 @@ const playAnim = (name, loop = true, lock = false) => {
     move: (dir, isRunning) => {
       direction.current.copy(dir)
 
-      if (isLocked.current) return
+      // ✅ BLOCK movement animation while shooting
+      if (isLocked.current || isShooting.current) return
 
       if (dir.length() === 0) playAnim(animMap.idle)
       else playAnim(isRunning ? animMap.run : animMap.walk)
     },
 
     jump: () => {
-      if (animMap.jump && !isLocked.current)
+      if (animMap.jump && !isLocked.current && !isShooting.current)
         playAnim(animMap.jump, false, true)
     },
 
@@ -117,12 +121,17 @@ const playAnim = (name, loop = true, lock = false) => {
       playAnim(animMap.gun, false, true)
     },
 
-shoot: () => {
-    // Force play shoot animation even if locked (unless it's a jump lock)
-    if (!gunEquipped.current || !animMap.shoot) return;
-    playAnim(animMap.shoot, false, true);
-    shootCallback.current();
-  },
+    // ✅ FULLY FIXED SHOOT
+    shoot: () => {
+      if (!animMap.shoot || isLocked.current) return
+
+      isShooting.current = true
+
+      playAnim(animMap.shoot, false, true)
+
+      // Optional: trigger callback (for muzzle flash etc.)
+      shootCallback.current?.()
+    },
 
     setShootCallback: (cb) => {
       shootCallback.current = cb
@@ -138,28 +147,38 @@ shoot: () => {
     getPosition: () => {
       return group.current.getWorldPosition(new THREE.Vector3())
     },
+
     lookAt: (targetVec) => {
-    group.current.lookAt(targetVec.x, group.current.position.y, targetVec.z);
-  }
+      group.current.lookAt(
+        targetVec.x,
+        group.current.position.y,
+        targetVec.z
+      )
+    }
   }))
 
   // ---------------- MOVEMENT ----------------
   useFrame(() => {
     if (!group.current) return
 
-    if (direction.current.length() > 0) {
+    if (direction.current.length() > 0 && !props.isAiming) {
       const speed = 0.1
-
       group.current.position.x += direction.current.x * speed
       group.current.position.z += direction.current.z * speed
 
-      const angle = Math.atan2(direction.current.x, direction.current.z)
+      const angle = Math.atan2(
+        direction.current.x,
+        direction.current.z
+      )
 
       group.current.rotation.y = THREE.MathUtils.lerp(
         group.current.rotation.y,
         angle,
         0.15
       )
+    } else if (props.isAiming) {
+      group.current.position.x += direction.current.x * 0.05
+      group.current.position.z += direction.current.z * 0.05
     }
   })
 

@@ -1,93 +1,117 @@
 import React, {
   useRef,
   useEffect,
-  useMemo,
+  useImperativeHandle,
   forwardRef,
-  useImperativeHandle
+  useMemo
 } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { useGLTF, useAnimations } from '@react-three/drei'
 import { SkeletonUtils } from 'three-stdlib'
 import * as THREE from 'three'
 
-export const Monster = forwardRef(
-  ({ playerRef, setGameOver, active, ...props }, ref) => {
-    const group = useRef()
+export const Monster = forwardRef(({ playerRef, setGameOver, active, ...props }, ref) => {
+  const group = useRef()
 
-    const { scene, animations } = useGLTF('/Monster1.glb')
-    const clone = useMemo(() => SkeletonUtils.clone(scene), [scene])
-    const { actions } = useAnimations(animations, group)
+  const { scene, animations } = useGLTF('/Monster1.glb')
+  const clone = useMemo(() => SkeletonUtils.clone(scene), [scene])
 
-    const health = useRef(100)
+  const { actions, names, mixer } = useAnimations(animations, clone)
 
-    // ---------------- EXPOSE ----------------
-    useImperativeHandle(ref, () => ({
-      takeDamage: (dmg) => {
-        health.current -= dmg
-        return health.current <= 0
-      },
+  const currentAction = useRef()
 
-      getPosition: () => {
-        return group.current
-          ? group.current.getWorldPosition(new THREE.Vector3())
-          : new THREE.Vector3()
-      }
-    }))
-
-    // ---------------- RESET HEALTH ----------------
-    useEffect(() => {
-      if (active) {
-        health.current = 100
-      }
-    }, [active])
-
-    // ---------------- ANIMATION ----------------
-    useEffect(() => {
-      if (active && actions && Object.keys(actions).length > 0) {
-        const anim = actions[Object.keys(actions)[0]]
-        anim?.reset().fadeIn(0.5).play()
-      }
-    }, [active, actions])
-
-    // ---------------- AI ----------------
-    useFrame((_, delta) => {
-      // ✅ SAFETY CHECKS (VERY IMPORTANT)
-      if (!active || !group.current || !playerRef.current) return
-
-      const mPos = group.current.position
-
-      // ✅ CORRECT WAY (uses your Female.jsx API)
-      const pPos = playerRef.current.getPosition()
-
-      if (!pPos) return
-
-      const dir = new THREE.Vector3().subVectors(pPos, mPos)
-      dir.y = 0
-
-      const dist = dir.length()
-
-      // 💀 GAME OVER
-      if (dist < 1.5) {
-        setGameOver(true)
-        return
-      }
-
-      // 🏃 CHASE PLAYER
-      if (dist > 1.5) {
-        dir.normalize()
-
-        mPos.addScaledVector(dir, delta * 7)
-
-        group.current.lookAt(pPos.x, mPos.y, pPos.z)
-      }
+  // -------- FIND RUN ANIMATION --------
+  const animMap = useMemo(() => {
+    const map = {}
+    names.forEach((n) => {
+      const name = n.toLowerCase()
+      if (name.includes('run')) map.run = n
+      if (name.includes('walk') && !map.run) map.run = n // fallback
+      if (name.includes('idle')) map.idle = n
     })
+    return map
+  }, [names])
 
-    if (!active) return null
+  // -------- PLAY ANIMATION --------
+  const playAnim = (name, loop = true) => {
+    const next = actions[name]
+    if (!next) return
 
-    return (
-      <group ref={group} {...props} dispose={null}>
-        <primitive object={clone} scale={0.5} />
-      </group>
-    )
+    if (currentAction.current === next) return
+
+    currentAction.current?.fadeOut(0.2)
+
+    next.reset()
+      .fadeIn(0.2)
+      .setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce)
+      .play()
+
+    currentAction.current = next
   }
-)
+
+  // -------- FORCE RUN ANIMATION WHEN ACTIVE --------
+  useEffect(() => {
+    if (!actions || !names.length) return
+    if (!active) return
+
+    const runAnimName =
+      names.find(n => n.toLowerCase().includes('run')) ||
+      names.find(n => n.toLowerCase().includes('walk')) ||
+      names[0] // fallback
+
+    if (runAnimName && actions[runAnimName]) {
+      const runAction = actions[runAnimName]
+      runAction.reset()
+      runAction.fadeIn(0.2)
+      runAction.setLoop(THREE.LoopRepeat)
+      runAction.play()
+
+      currentAction.current = runAction
+    }
+  }, [actions, names, active])
+
+  // -------- EXPOSE --------
+  useImperativeHandle(ref, () => ({
+    getPosition: () => {
+      return group.current.getWorldPosition(new THREE.Vector3())
+    }
+  }))
+
+  // -------- AI MOVEMENT --------
+  useFrame((_, delta) => {
+    if (!group.current || !playerRef.current || !active) return
+
+    const playerPos = playerRef.current.getPosition()
+    const monsterPos = group.current.position.clone() // ✅ IMPORTANT FIX
+
+    // Direction to player
+    const dir = new THREE.Vector3()
+      .subVectors(playerPos, monsterPos)
+      .normalize()
+
+    // Move toward player
+    const speed = 10 // 🔥 increased for visible movement
+    group.current.position.add(dir.multiplyScalar(speed * delta))
+
+    // Rotate toward player
+    const angle = Math.atan2(dir.x, dir.z)
+    group.current.rotation.y = THREE.MathUtils.lerp(
+      group.current.rotation.y,
+      angle,
+      0.2
+    )
+
+    // -------- GAME OVER CHECK --------
+    const distance = monsterPos.distanceTo(playerPos)
+
+    if (distance < 2.5) {
+      setGameOver(true)
+    }
+  })
+
+  return (
+    <group ref={group} {...props}>
+      <primitive object={clone} />
+    </group>
+  )
+})
