@@ -87,25 +87,51 @@ function Ground() {
 }
 
 // ---------------- RADAR ----------------
-function RadarLogic({ playerRef, monsterRef, setDots, monsterActive }) {
+function RadarLogic({ playerRef, monsterRefs, setDots, monsterActive }) {
   useFrame(() => {
-    if (playerRef.current) {
-      const pPos = playerRef.current.getPosition?.() || new THREE.Vector3();
-      let mData = { x: 0, y: 0 };
-      if (monsterActive && monsterRef.current) {
-        const mPos = monsterRef.current.getPosition?.() || new THREE.Vector3();
-        mData = { x: (mPos.x - pPos.x) * 2.5, y: (mPos.z - pPos.z) * 2.5 };
+    if (!playerRef.current) return;
+
+    const pPos = playerRef.current.getPosition?.() || new THREE.Vector3();
+
+    let closest = null;
+    let minDist = Infinity;
+
+    monsterRefs.current.forEach((m) => {
+      if (!m) return;
+      const mPos = m.getPosition();
+      const dist = pPos.distanceTo(mPos);
+
+      if (dist < minDist) {
+        minDist = dist;
+        closest = mPos;
       }
-      setDots({ p: { x: 0, y: 0 }, m: mData });
+    });
+
+    let mData = { x: 0, y: 0 };
+
+    if (monsterActive && closest) {
+      mData = {
+        x: (closest.x - pPos.x) * 2.5,
+        y: (closest.z - pPos.z) * 2.5
+      };
     }
+
+    setDots({ p: { x: 0, y: 0 }, m: mData });
   });
+
   return null;
 }
 
 // ---------------- GAME SYSTEMS ----------------
 function GameSystems({ 
-  isAiming, modelRef, monsterRef, bullets, setBullets, 
-  monsterActive, setMonsterActive, setMonsterDead, moveDirRef, isRunningRef 
+  isAiming, 
+  modelRef, 
+  monsterRefs, 
+  bullets, 
+  setBullets, 
+  setMonsters,
+  moveDirRef,        
+  isRunningRef       
 }) {
   const { camera, gl } = useThree();
   const rotation = useRef({ yaw: 0, pitch: 0 });
@@ -171,24 +197,41 @@ function GameSystems({
     }
 
     // ===== BULLET MOVEMENT =====
-    if (bullets.length > 0) {
-      const mPos = monsterRef.current?.getPosition();
-      setBullets(prev =>
-        prev.map(b => {
-          const velocity = b.direction.clone().multiplyScalar(80 * delta);
-          const newPos = b.position.clone().add(velocity);
-          const newLife = b.life + delta;
+if (bullets.length > 0) {
+  setBullets(prev =>
+    prev.map(b => {
+      const velocity = b.direction.clone().multiplyScalar(80 * delta);
+      const newPos = b.position.clone().add(velocity);
+      const newLife = b.life + delta;
 
-          if (monsterActive && mPos && newPos.distanceTo(mPos) < 3.5) {
-            setMonsterDead(true);
-            setMonsterActive(false);
-            return null;
+      let hit = false;
+
+      monsterRefs.current.forEach((monster, i) => {
+        if (!monster) return;
+
+        const mPos = monster.getPosition();
+
+        if (newPos.distanceTo(mPos) < 3.5) {
+          const dead = monster.takeDamage(20);
+
+          if (dead) {
+            monsterRefs.current[i] = null;
+
+            setMonsters(prev =>
+              prev.filter((_, idx) => idx !== i)
+            );
           }
-          if (newLife > 3.0) return null;
-          return { ...b, position: newPos, life: newLife };
-        }).filter(Boolean)
-      );
-    }
+
+          hit = true;
+        }
+      });
+
+      if (hit || newLife > 3.0) return null;
+
+      return { ...b, position: newPos, life: newLife };
+    }).filter(Boolean)
+  );
+}
   });
 
   return (
@@ -207,7 +250,9 @@ function GameSystems({
 // ---------------- MAIN COMPONENT ----------------
 export default function AvatarWorld({ selectedModel }) {
   const modelRef = useRef();
-  const monsterRef = useRef();
+  const monsterRefs = useRef([]);
+const [monsters, setMonsters] = useState([]);
+const [wave, setWave] = useState(1);
   const cameraRef = useRef();
   
   const [dots, setDots] = useState({ p: { x: 0, y: 0 }, m: { x: 0, y: 0 } });
@@ -247,6 +292,23 @@ export default function AvatarWorld({ selectedModel }) {
     modelRef.current?.shoot();
     spawnBullet();
   };
+  const handleSummon = () => {
+  if (dungeonStatus !== "closed") return;
+
+  setDungeonStatus("opening");
+
+  setTimeout(() => {
+    const count = wave; // 1 → 2 → 3
+    const newMonsters = Array.from({ length: count }).map((_, i) => ({
+      id: Math.random(),
+      position: [i * 5 - 5, -0.2, -40]
+    }));
+
+    setMonsters(newMonsters);
+    setDungeonStatus("active");
+  }, 1500);
+};
+
 
   useEffect(() => {
     const mousedown = (e) => { if (e.button === 0) handleFire(e); };
@@ -265,6 +327,8 @@ export default function AvatarWorld({ selectedModel }) {
       if (e.code === 'Space') modelRef.current?.jump();
       if (e.code === 'KeyM') handleSummon();
     }
+    
+    
     const keyUp = (e) => {
       if (['KeyW', 'KeyS'].includes(e.code)) moveDirRef.current.z = 0;
       if (['KeyA', 'KeyD'].includes(e.code)) moveDirRef.current.x = 0;
@@ -274,15 +338,18 @@ export default function AvatarWorld({ selectedModel }) {
     window.addEventListener('keyup', keyUp);
     return () => { window.removeEventListener('keydown', keyDown); window.removeEventListener('keyup', keyUp); }
   }, []);
-
-  const handleSummon = () => {
-    if (dungeonStatus !== "closed") return;
-    setDungeonStatus("opening"); 
-    setTimeout(() => { 
-      setMonsterActive(true); 
-      setDungeonStatus("active"); 
-    }, 1500);
+  useEffect(() => {
+  if (monsters.length === 0 && dungeonStatus === "active") {
+    if (wave >= 3) {
+      setMonsterDead(true); // FINAL WIN
+    } else {
+      setWave(prev => prev + 1);
+      setDungeonStatus("closed");
+    }
   }
+}, [monsters]);
+
+
 
   const handleGunOut = () => {
     if (gameOver || monsterDead) return;
@@ -325,17 +392,31 @@ export default function AvatarWorld({ selectedModel }) {
             position={[0, -0.2, 0]}
             isAiming={isAiming}
           />
-          <RadarLogic playerRef={modelRef} monsterRef={monsterRef} setDots={setDots} monsterActive={monsterActive} />
+          <RadarLogic playerRef={modelRef} monsterRefs={monsterRefs} setDots={setDots} monsterActive={monsterActive} />
           <GameSystems 
-            isAiming={isAiming} modelRef={modelRef} monsterRef={monsterRef} 
-            bullets={bullets} setBullets={setBullets} 
-            monsterActive={monsterActive} setMonsterActive={setMonsterActive} setMonsterDead={setMonsterDead} 
+            isAiming={isAiming} 
+            modelRef={modelRef} 
+            monsterRefs={monsterRefs}
+            bullets={bullets} 
+            setBullets={setBullets} 
+            setMonsters={setMonsters}
+            monsterActive={monsterActive} 
+            setMonsterActive={setMonsterActive} 
+            setMonsterDead={setMonsterDead} 
             moveDirRef={moveDirRef}
             isRunningRef={isRunningRef}   
           />
-          {monsterActive && (
-             <Monster ref={monsterRef} active={monsterActive} playerRef={modelRef} setGameOver={setGameOver} scale={2.5} position={[0, -0.2, -40]} />
-          )}
+{monsters.map((m, i) => (
+  <Monster
+    key={m.id}
+    ref={el => (monsterRefs.current[i] = el)}
+    active={true}
+    playerRef={modelRef}
+    setGameOver={setGameOver}
+    position={m.position}
+    hp={100 + wave * 20} // scaling difficulty
+  />
+))}
         </Suspense>
 
         <Ground />
