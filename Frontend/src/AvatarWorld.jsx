@@ -474,8 +474,45 @@ useEffect(() => {
       </div>
 
       <div style={ui}>
-        <button onClick={handleGunOut} style={btn}>{isAiming ? "HOLSTER" : "DRAW WEAPON"}</button>
-        <button onClick={handleSummon} style={{ ...btn, marginLeft: 10 }}>{dungeonStatus === "closed" ? "SUMMON" : "LIVE"}</button>
+        <button onClick={handleGunOut} style={btn}>
+  {isAiming ? (
+    // 🟠 HOLSTER ICON (Backpack/Storage Concept)
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#FF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 2h8a2 2 0 0 1 2 2v18H6V4a2 2 0 0 1 2-2z" />
+      <path d="M9 10h6" />
+      <path d="M9 14h6" />
+      <path d="M12 6v2" />
+    </svg>
+  ) : (
+    // 🔫 DRAW WEAPON (Detailed SMG/UMP Profile)
+    <svg width="45" height="25" viewBox="0 0 200 80">
+      <g fill="white">
+        {/* Silencer/Barrel Tip */}
+        <rect x="175" y="28" width="15" height="6" rx="1" />
+        
+        {/* Main Barrel & Handguard */}
+        <rect x="100" y="25" width="75" height="12" rx="2" />
+        
+        {/* Receiver/Upper Body */}
+        <rect x="60" y="20" width="60" height="22" rx="3" />
+        
+        {/* Magazine (Slightly curved/angled) */}
+        <path d="M105 37 L115 37 L110 65 L100 65 Z" />
+        
+        {/* Pistol Grip */}
+        <path d="M75 42 L90 42 L82 65 L67 65 Z" />
+        
+        {/* Stock (Skeletonized look) */}
+        <path d="M60 25 L20 25 L15 50 L25 50 L30 35 L60 35 Z" />
+        
+        {/* Iron Sights */}
+        <rect x="65" y="16" width="6" height="4" />
+        <rect x="155" y="21" width="4" height="4" />
+      </g>
+    </svg>
+  )}
+</button>
+        <button onClick={handleSummon} style={{ ...btn, marginLeft: 10 }}>{dungeonStatus === "closed" ? "SUMMON 👾" : "LIVE"}</button>
       </div>
               {waveMessage && (
           <div style={waveUI}>
@@ -532,7 +569,21 @@ useEffect(() => {
       </Canvas>
 
       {!gameOver && !monsterDead && (
-        <button onMouseDown={handleFire} style={fireBtn}>●</button>
+        <button onMouseDown={handleFire} style={fireBtn}><svg width="80" height="30" viewBox="0 0 200 80" xmlns="http://www.w3.org/2000/svg">
+  <g>
+
+    <path d="M150 10 Q190 40 150 70 L130 70 Q160 40 130 10 Z" fill="#c9a23a"/>
+
+    <rect x="120" y="20" width="30" height="40" fill="#d4af37"/>
+
+    <rect x="40" y="15" width="80" height="50" rx="6" fill="#b8860b"/>
+
+    <rect x="20" y="20" width="20" height="40" rx="4" fill="#8b6508"/>
+
+    <rect x="10" y="25" width="10" height="30" rx="2" fill="#6e4f05"/>
+
+  </g>
+</svg></button>
       )}
 
       {!gameOver && !monsterDead && (
