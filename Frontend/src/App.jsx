@@ -14,7 +14,7 @@ const [selectedModel, setSelectedModel] = useState(null);
     // Check if already running as an app
     if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
       setIsStandalone(true);
-      setShowGame(true);
+      setShowSelector(true);
     }
 
     const handler = (e) => {

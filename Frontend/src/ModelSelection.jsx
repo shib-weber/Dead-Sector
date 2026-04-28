@@ -12,9 +12,9 @@ function Preview({ type }) {
   return (
     <Suspense fallback={null}>
       <Component
-        scale={1.8}
+        scale={1.6}
         position={[0, -1.2, 0]}
-        isAiming={true} // 👈 Gun-out animation
+        isAiming={true}
       />
     </Suspense>
   );
@@ -23,80 +23,119 @@ function Preview({ type }) {
 export default function ModelSelection({ onSelect }) {
   const [selected, setSelected] = useState(null);
 
+  const isMobile = window.innerWidth < 768;
+
   return (
     <div style={container}>
-      {/* ---------- STORY + CONTROLS ---------- */}
+      
+      {/* ---------- INFO ---------- */}
       <div style={infoBox}>
         <h2 style={infoTitle}>MISSION BRIEF</h2>
+
         <p style={text}>
-          You are trapped inside a mysterious <span style={{ color: "red" }}>VOID SECTOR</span>.
-          <br />
+          You are trapped inside a <span style={{ color: "red" }}>VOID SECTOR</span>.
           A corrupted dimension filled with hostile entities.
-          <br />
-          Your objective is simple:
         </p>
 
         <p style={highlight}>ELIMINATE ALL MONSTERS TO ESCAPE</p>
 
         <h3 style={subTitle}>CONTROLS</h3>
 
-        <div style={controlsGrid}>
+        <div style={{
+          ...controlsGrid,
+          flexDirection: isMobile ? "column" : "row"
+        }}>
           <div>
-            <p><b>Movement:</b> WASD / Joystick (Mobile)</p>
-            <p><b>Run:</b> Left Shift</p>
-            <p><b>Jump:</b> Spacebar</p>
-            <p><b>Gun Out:</b> Gun Button</p>
+            <p><b>Move:</b> WASD / Joystick</p>
+            <p><b>Run:</b> Shift</p>
+            <p><b>Jump:</b> Space</p>
           </div>
 
           <div>
-            <p><b>Shoot:</b> Left Mouse / Fire Button</p>
-            <p><b>Summon Monster:</b> M Key / Summon Button</p>
-            <p><b>Objective:</b> Kill to Win</p>
-            <p><b>Tracking:</b> Follow Radar</p>
+            <p><b>Shoot:</b> Click</p>
+            <p><b>Summon:</b> M</p>
+            <p><b>Objective:</b> Kill All</p>
           </div>
         </div>
       </div>
 
-      <h1 style={title}>SELECT OPERATIVE</h1>
+      {/* ---------- TITLE ---------- */}
+      <h1 style={{
+        ...title,
+        fontSize: isMobile ? "1.5rem" : "2.5rem"
+      }}>
+        SELECT OPERATIVE
+      </h1>
 
-      <div style={grid}>
+      {/* ---------- CHARACTER GRID ---------- */}
+      <div style={{
+        ...grid,
+        gap: isMobile ? "10px" : "40px"
+      }}>
+        
         {/* MALE */}
         <div
           style={{
             ...card,
-            border: selected === "male" ? "2px solid red" : "1px solid #817e7e",
+            width: isMobile ? "140px" : "250px",
+            height: isMobile ? "190px" : "320px",
+            border: selected === "male" ? "2px solid red" : "1px solid #444",
           }}
           onClick={() => setSelected("male")}
         >
-          <Canvas camera={{ position: [0, 2, 5], fov: 40 }}>
+          <Canvas
+            camera={{ position: [0, 2, isMobile ? 4 : 5], fov: isMobile ? 50 : 40 }}
+            style={{ height: isMobile ? "130px" : "250px" }}
+          >
             <ambientLight intensity={1} />
             <Environment preset="dawn" />
             <Preview type="male" />
             <OrbitControls enableZoom={false} target={[0, 0.4, 0]} />
           </Canvas>
-          <p style={label}>MALE</p>
+
+          <p style={{
+            ...label,
+            fontSize: isMobile ? "12px" : "14px"
+          }}>
+            MALE
+          </p>
         </div>
 
         {/* FEMALE */}
         <div
           style={{
             ...card,
-            border: selected === "female" ? "2px solid red" : "1px solid #333",
+            width: isMobile ? "140px" : "250px",
+            height: isMobile ? "190px" : "320px",
+            border: selected === "female" ? "2px solid red" : "1px solid #444",
           }}
           onClick={() => setSelected("female")}
         >
-          <Canvas camera={{ position: [0, 2, 5], fov: 40 }}>
+          <Canvas
+            camera={{ position: [0, 2, isMobile ? 4 : 5], fov: isMobile ? 50 : 40 }}
+            style={{ height: isMobile ? "130px" : "250px" }}
+          >
             <ambientLight intensity={1} />
             <Environment preset="dawn" />
             <Preview type="female" />
             <OrbitControls enableZoom={false} target={[0, 0.2, 0]} />
           </Canvas>
-          <p style={label}>FEMALE</p>
+
+          <p style={{
+            ...label,
+            fontSize: isMobile ? "12px" : "14px"
+          }}>
+            FEMALE
+          </p>
         </div>
       </div>
 
+      {/* ---------- BUTTON ---------- */}
       <button
-        style={btn}
+        style={{
+          ...btn,
+          width: isMobile ? "90%" : "auto"
+        }}
         disabled={!selected}
         onClick={() => onSelect(selected)}
       >
@@ -107,6 +146,7 @@ export default function ModelSelection({ onSelect }) {
 }
 
 // ---------------- STYLES ----------------
+
 const container = {
   width: "100vw",
   height: "100vh",
@@ -114,66 +154,68 @@ const container = {
   display: "flex",
   flexDirection: "column",
   alignItems: "center",
-  justifyContent: "center",
+  justifyContent: "flex-start",
   color: "white",
   fontFamily: "monospace",
+  overflowY: "auto",
+  padding: "10px",
 };
 
 const infoBox = {
-  width: "80%",
-  maxWidth: "900px",
+  width: "100%",
+  maxWidth: "700px",
   background: "#111",
   border: "1px solid red",
-  padding: "20px",
-  marginBottom: "30px",
+  padding: "12px",
+  marginBottom: "10px",
   textAlign: "center",
 };
 
 const infoTitle = {
   color: "red",
-  marginBottom: "10px",
+  marginBottom: "5px",
+  fontSize: "14px",
   letterSpacing: "2px",
 };
 
 const subTitle = {
-  marginTop: "15px",
+  marginTop: "10px",
   color: "#ff4444",
+  fontSize: "13px",
 };
 
 const text = {
-  fontSize: "14px",
-  lineHeight: "1.6",
+  fontSize: "12px",
+  lineHeight: "1.4",
 };
 
 const highlight = {
-  marginTop: "10px",
+  marginTop: "5px",
   color: "red",
   fontWeight: "bold",
+  fontSize: "12px",
 };
 
 const controlsGrid = {
   display: "flex",
   justifyContent: "space-around",
-  marginTop: "10px",
-  fontSize: "13px",
+  marginTop: "8px",
+  fontSize: "11px",
 };
 
 const title = {
-  fontSize: "2.5rem",
-  marginBottom: "30px",
-  letterSpacing: "4px",
+  marginBottom: "10px",
+  letterSpacing: "3px",
   color: "red",
 };
 
 const grid = {
   display: "flex",
-  gap: "40px",
+  justifyContent: "center",
 };
 
 const card = {
-  width: "250px",
-  height: "320px",
-  background: "#888383",
+  background: "#222",
   cursor: "pointer",
   display: "flex",
   flexDirection: "column",
@@ -182,13 +224,12 @@ const card = {
 
 const label = {
   textAlign: "center",
-  padding: "10px",
-  borderTop: "1px solid #222",
+  padding: "5px",
 };
 
 const btn = {
-  marginTop: "30px",
-  padding: "12px 30px",
+  marginTop: "15px",
+  padding: "10px",
   background: "red",
   border: "none",
   color: "white",
