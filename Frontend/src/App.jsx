@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react';
 import AvatarWorld from './AvatarWorld';
+import ModelSelection from "./ModelSelection";
 
 export default function App() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isStandalone, setIsStandalone] = useState(false);
   const [showGame, setShowGame] = useState(false);
+
+const [showSelector, setShowSelector] = useState(false);
+const [selectedModel, setSelectedModel] = useState(null);
 
   useEffect(() => {
     // Check if already running as an app
@@ -48,10 +52,26 @@ export default function App() {
     }
   };
 
+  const handleStart = () => {
+  setShowSelector(true);
+  enterFullScreenAndLock();
+};
+
   // If they are already in the app, or they clicked "Start"
-  if (showGame) {
-    return <AvatarWorld />;
-  }
+if (showGame) {
+  return <AvatarWorld selectedModel={selectedModel} />;
+}
+
+if (showSelector) {
+  return (
+    <ModelSelection
+      onSelect={(model) => {
+        setSelectedModel(model);
+        setShowGame(true);
+      }}
+    />
+  );
+}
 
   return (
     <div style={landingStyle}>
@@ -68,7 +88,7 @@ export default function App() {
           )}
           
           <button 
-            onClick={() => { setShowGame(true); enterFullScreenAndLock(); }} 
+            onClick={handleStart}
             style={secondaryBtnStyle}
           >
             ENTER AS GUEST

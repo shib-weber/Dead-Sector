@@ -11,7 +11,8 @@ import * as THREE from 'three'
 import { Joystick } from 'react-joystick-component'
 
 // Components
-import { Model } from './Male'
+import { Model as Male } from './Male'
+import { Model as Female } from './Female'
 import { Monster } from './Monster1'
 
 // ---------------- LOADER ----------------
@@ -204,7 +205,7 @@ function GameSystems({
 }
 
 // ---------------- MAIN COMPONENT ----------------
-export default function AvatarWorld() {
+export default function AvatarWorld({ selectedModel }) {
   const modelRef = useRef();
   const monsterRef = useRef();
   const cameraRef = useRef();
@@ -219,6 +220,7 @@ export default function AvatarWorld() {
 
   const moveDirRef = useRef(new THREE.Vector3(0, 0, 0));
   const isRunningRef = useRef(false);
+  const PlayerModel = selectedModel === "female" ? Female : Male;
 
   const spawnBullet = useCallback(() => {
     if (!cameraRef.current || !modelRef.current || !isAiming) return;
@@ -317,7 +319,12 @@ export default function AvatarWorld() {
         <Stars radius={150} depth={50} count={7000} factor={4} fade speed={1} />
 
         <Suspense fallback={<Loader />}>
-          <Model ref={modelRef} scale={1.8} position={[0, -0.2, 0]} isAiming={isAiming} />
+          <PlayerModel
+            ref={modelRef}
+            scale={1.8}
+            position={[0, -0.2, 0]}
+            isAiming={isAiming}
+          />
           <RadarLogic playerRef={modelRef} monsterRef={monsterRef} setDots={setDots} monsterActive={monsterActive} />
           <GameSystems 
             isAiming={isAiming} modelRef={modelRef} monsterRef={monsterRef} 
