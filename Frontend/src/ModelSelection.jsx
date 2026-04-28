@@ -25,6 +25,38 @@ export default function ModelSelection({ onSelect }) {
 
   return (
     <div style={container}>
+      {/* ---------- STORY + CONTROLS ---------- */}
+      <div style={infoBox}>
+        <h2 style={infoTitle}>MISSION BRIEF</h2>
+        <p style={text}>
+          You are trapped inside a mysterious <span style={{ color: "red" }}>VOID SECTOR</span>.
+          <br />
+          A corrupted dimension filled with hostile entities.
+          <br />
+          Your objective is simple:
+        </p>
+
+        <p style={highlight}>ELIMINATE ALL MONSTERS TO ESCAPE</p>
+
+        <h3 style={subTitle}>CONTROLS</h3>
+
+        <div style={controlsGrid}>
+          <div>
+            <p><b>Movement:</b> WASD / Joystick (Mobile)</p>
+            <p><b>Run:</b> Left Shift</p>
+            <p><b>Jump:</b> Spacebar</p>
+            <p><b>Gun Out:</b> Gun Button</p>
+          </div>
+
+          <div>
+            <p><b>Shoot:</b> Left Mouse / Fire Button</p>
+            <p><b>Summon Monster:</b> M Key / Summon Button</p>
+            <p><b>Objective:</b> Kill to Win</p>
+            <p><b>Tracking:</b> Follow Radar</p>
+          </div>
+        </div>
+      </div>
+
       <h1 style={title}>SELECT OPERATIVE</h1>
 
       <div style={grid}>
@@ -57,7 +89,7 @@ export default function ModelSelection({ onSelect }) {
             <ambientLight intensity={1} />
             <Environment preset="dawn" />
             <Preview type="female" />
-            <OrbitControls enableZoom={false} target={[0, 0.2, 0]}  />
+            <OrbitControls enableZoom={false} target={[0, 0.2, 0]} />
           </Canvas>
           <p style={label}>FEMALE</p>
         </div>
@@ -85,6 +117,45 @@ const container = {
   justifyContent: "center",
   color: "white",
   fontFamily: "monospace",
+};
+
+const infoBox = {
+  width: "80%",
+  maxWidth: "900px",
+  background: "#111",
+  border: "1px solid red",
+  padding: "20px",
+  marginBottom: "30px",
+  textAlign: "center",
+};
+
+const infoTitle = {
+  color: "red",
+  marginBottom: "10px",
+  letterSpacing: "2px",
+};
+
+const subTitle = {
+  marginTop: "15px",
+  color: "#ff4444",
+};
+
+const text = {
+  fontSize: "14px",
+  lineHeight: "1.6",
+};
+
+const highlight = {
+  marginTop: "10px",
+  color: "red",
+  fontWeight: "bold",
+};
+
+const controlsGrid = {
+  display: "flex",
+  justifyContent: "space-around",
+  marginTop: "10px",
+  fontSize: "13px",
 };
 
 const title = {
