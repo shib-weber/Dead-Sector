@@ -9,7 +9,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       manifest: {
         name: 'Dead Sector',
-        short_name: 'LavaGame',
+        short_name: 'DeadSector',
         description: '3D Survival Game',
         theme_color: '#000000',
         display: 'standalone',
