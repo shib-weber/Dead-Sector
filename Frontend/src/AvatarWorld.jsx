@@ -87,37 +87,43 @@ function Ground() {
 }
 
 // ---------------- RADAR ----------------
-function RadarLogic({ playerRef, monsterRefs, setDots, monsterActive }) {
-  useFrame(() => {
-    if (!playerRef.current) return;
+function RadarLogic({ playerRef, monsterRefs, setDots, monsterActive,cameraRef }) {
+useFrame(() => {
+  if (!playerRef.current || !cameraRef.current) return;
 
-    const pPos = playerRef.current.getPosition?.() || new THREE.Vector3();
+  const pPos = playerRef.current.getPosition?.();
+  if (!pPos) return;
 
-    let closest = null;
-    let minDist = Infinity;
+  // ✅ ALWAYS CORRECT direction (camera-based)
+  const forward = new THREE.Vector3();
+  cameraRef.current.getWorldDirection(forward);
 
-    monsterRefs.current.forEach((m) => {
-      if (!m) return;
-      const mPos = m.getPosition();
-      const dist = pPos.distanceTo(mPos);
+  forward.y = 0;
+  forward.normalize();
 
-      if (dist < minDist) {
-        minDist = dist;
-        closest = mPos;
-      }
+  const monstersData = [];
+
+  monsterRefs.current.forEach((m) => {
+    if (!m) return;
+
+    const mPos = m.getPosition?.();
+    if (!mPos) return;
+
+    monstersData.push({
+      x: (mPos.x - pPos.x) * 2.5,
+      y: (mPos.z - pPos.z) * 2.5
     });
-
-    let mData = { x: 0, y: 0 };
-
-    if (monsterActive && closest) {
-      mData = {
-        x: (closest.x - pPos.x) * 2.5,
-        y: (closest.z - pPos.z) * 2.5
-      };
-    }
-
-    setDots({ p: { x: 0, y: 0 }, m: mData });
   });
+
+  setDots({
+    p: {
+      x: 0,
+      y: 0,
+      angle: Math.atan2(forward.x, -forward.z)
+    },
+    m: monstersData
+  });
+});
 
   return null;
 }
@@ -131,7 +137,8 @@ function GameSystems({
   setBullets, 
   setMonsters,
   moveDirRef,        
-  isRunningRef       
+  isRunningRef,
+  modelType       
 }) {
   const { camera, gl } = useThree();
   const rotation = useRef({ yaw: 0, pitch: 0 });
@@ -214,7 +221,17 @@ function GameSystems({
 
     // ===== CAMERA + PLAYER ROTATION =====
     if (isAiming) {
-      const offset = new THREE.Vector3(0.8, 1.8, 3.5);
+      let offset;
+
+if (modelType === "male") {
+  offset = new THREE.Vector3(1.0, 2.4, 4.5); // 🔥 higher & farther
+} else {
+  offset = new THREE.Vector3(0.8, 1.8, 3.5);
+
+  if (modelType === "male") {
+  offset.x += 0.5; // move camera to right shoulder
+}
+}
       const rotMat = new THREE.Matrix4().makeRotationFromEuler(
         new THREE.Euler(rotation.current.pitch, rotation.current.yaw, 0, 'YXZ')
       );
@@ -307,7 +324,10 @@ const [monsters, setMonsters] = useState([]);
 const [wave, setWave] = useState(1);
   const cameraRef = useRef();
   
-  const [dots, setDots] = useState({ p: { x: 0, y: 0 }, m: { x: 0, y: 0 } });
+  const [dots, setDots] = useState({
+  p: { x: 0, y: 0, angle: 0 },
+  m: []
+});
   const [monsterActive, setMonsterActive] = useState(false);
   const [dungeonStatus, setDungeonStatus] = useState("closed"); 
   const [bullets, setBullets] = useState([]); 
@@ -461,16 +481,62 @@ useEffect(() => {
     <div style={{ width: '100vw', height: '100vh', background: '#000', position: 'relative', overflow: 'hidden' }}>
       
       {gameOver && <div style={overlayStyle}><h1 style={{color: 'red', fontSize: '3rem'}}>WASTED</h1><button onClick={() => window.location.reload()} style={btn}>RETRY</button></div>}
-      {monsterDead && <div style={overlayStyle}><h1 style={{color: '#0f0', fontSize: '3rem'}}>TARGET NEUTRALIZED</h1><button onClick={() => window.location.reload()} style={btn}>NEXT MISSION</button></div>}
+      {monsterDead && <div style={overlayStyle}><h1 style={{color: '#0f0', fontSize: '3rem'}}>TARGET NEUTRALIZED</h1><button onClick={() => window.location.reload()} style={btn}>YOU OWN</button></div>}
 
       {isAiming && !gameOver && !monsterDead && <div style={crosshair}><div style={innerCross} /></div>}
 
       <div style={radarContainer}>
         <div style={radarCircle}>
           <div style={radarSweep} />
-          <div style={{ ...dotStyle, background: '#0f0', left: '50%', top: '50%', border: '1px solid white' }} />
-          {monsterActive && <div style={{ ...dotStyle, background: '#f00', left: `calc(50% + ${dots.m.x}px)`, top: `calc(50% + ${dots.m.y}px)`, boxShadow: '0 0 10px red' }} />}
-        </div>
+<div
+  style={{
+    position: 'absolute',
+    left: '50%',
+    top: '50%',
+    transform: `translate(-50%, -50%) rotate(${dots.p.angle}rad)`,
+    pointerEvents: 'none'
+  }}
+>
+  {/* 🔺 Triangle */}
+  <div
+    style={{
+      width: 0,
+      height: 0,
+      borderLeft: '7px solid transparent',
+      borderRight: '7px solid transparent',
+      borderBottom: '14px solid #0f0',
+      filter: 'drop-shadow(0 0 6px #0f0)'
+    }}
+  />
+
+  {/* 🔥 Direction Beam */}
+  <div
+    style={{
+      position: 'absolute',
+      top: -60,   // ⬅️ extends forward
+      left: -18,
+      width: 50,
+      height: 60,
+      background: 'linear-gradient(to top, rgba(0,255,0,0.4), transparent)',
+      clipPath: 'polygon(0% 0%, 100% 0%, 50% 100%)',
+      filter: 'blur(2px)',
+      opacity: 0.8
+    }}
+  />
+</div>
+          {monsterActive && dots.m.map((m, i) => (
+            <div
+              key={i}
+              style={{
+                ...dotStyle,
+                background: '#f00',
+                left: `calc(50% + ${m.x}px)`,
+                top: `calc(50% + ${m.y}px)`,
+                boxShadow: '0 0 10px red'
+              }}
+            />
+          ))}        
+          </div>
       </div>
 
       <div style={ui}>
@@ -530,11 +596,17 @@ useEffect(() => {
         <Suspense fallback={<Loader />}>
           <PlayerModel
             ref={modelRef}
-            scale={1.8}
+            scale={1.6}
             position={[0, -0.2, 0]}
             isAiming={isAiming}
           />
-          <RadarLogic playerRef={modelRef} monsterRefs={monsterRefs} setDots={setDots} monsterActive={monsterActive} />
+          <RadarLogic
+            playerRef={modelRef}
+            monsterRefs={monsterRefs}
+            setDots={setDots}
+            monsterActive={monsterActive}
+            cameraRef={cameraRef}
+          />
           <GameSystems 
             isAiming={isAiming} 
             modelRef={modelRef} 
@@ -547,6 +619,7 @@ useEffect(() => {
             setMonsterDead={setMonsterDead} 
             moveDirRef={moveDirRef}
             isRunningRef={isRunningRef}   
+            modelType={selectedModel}
           />
 {monsters.map((m, i) => (
   <Monster
@@ -619,10 +692,10 @@ useEffect(() => {
 const ui = { position: 'absolute', top: 30, left: 30, zIndex: 10, display: 'flex' }
 const btn = { padding: '12px 20px', background: '#000', color: 'white', border: '2px solid red', cursor: 'pointer', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }
 const radarContainer = { position: 'absolute', top: 20, right: 20, zIndex: 100, padding: 10, background: 'rgba(0,0,0,0.85)', borderRadius: '50%', border: '1px solid #333' }
-const radarCircle = { position: 'relative', width: 120, height: 120, borderRadius: '50%', border: '2px solid #040', background: 'radial-gradient(circle, #001100 0%, #000 100%)', overflow: 'hidden' }
+const radarCircle = { position: 'relative', width: 180, height: 180, borderRadius: '50%', border: '2px solid #040', background: 'radial-gradient(circle, #001100 0%, #000 100%)', overflow: 'hidden' }
 const radarSweep = { position: 'absolute', width: '100%', height: '100%', background: 'conic-gradient(from 0deg, rgba(0,255,0,0.2), transparent 90deg)', animation: 'sweep 3s linear infinite' }
 const dotStyle = { position: 'absolute', width: 8, height: 8, borderRadius: '50%', transform: 'translate(-50%, -50%)' }
-const crosshair = { position: 'absolute', top: '30%', left: '50%', width: 34, height: 34, border: '1px solid rgba(255, 255, 255, 0.5)', borderRadius: '50%', transform: 'translate(-50%, -50%)', zIndex: 100, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }
+const crosshair = { position: 'absolute', top: '25%', left: '49%', width: 34, height: 34, border: '1px solid rgba(255, 255, 255, 0.5)', borderRadius: '50%', transform: 'translate(-50%, -50%)', zIndex: 100, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }
 const innerCross = { width: 4, height: 4, background: 'red', borderRadius: '50%', boxShadow: '0 0 5px red' }
 const overlayStyle = { position: 'absolute', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.95)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 1000, color: 'white', fontFamily: 'monospace' }
 const fireBtn = { position: 'absolute', bottom: 30, right: 30, width: 70, height: 70, borderRadius: '50%', background: 'rgba(255, 0, 0, 0.35)', border: '2px solid rgba(255,255,255,0.6)', color: '#fff', fontSize: '28px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 200, backdropFilter: 'blur(6px)', boxShadow: '0 0 15px rgba(255,0,0,0.6)', transition: '0.2s ease' }
