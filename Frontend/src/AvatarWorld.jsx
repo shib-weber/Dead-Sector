@@ -14,7 +14,7 @@ import { Joystick } from 'react-joystick-component'
 import { Model as Male } from './Male'
 import { Model as Female } from './Female'
 import { Monster } from './Monster1'
-
+const isMobile = /Mobi|Android/i.test(navigator.userAgent);
 // ---------------- LOADER ----------------
 function Loader() {
   return (
@@ -135,8 +135,60 @@ function GameSystems({
 }) {
   const { camera, gl } = useThree();
   const rotation = useRef({ yaw: 0, pitch: 0 });
+  useEffect(() => {
+  if (!isMobile) return;
+
+  let lastX = 0;
+  let lastY = 0;
+  let activeTouchId = null;
+
+  const handleTouchStart = (e) => {
+    const touch = e.touches[0];
+
+    // Only right side controls camera
+    if (touch.clientX < window.innerWidth / 2) return;
+
+    activeTouchId = touch.identifier;
+    lastX = touch.clientX;
+    lastY = touch.clientY;
+  };
+
+  const handleTouchMove = (e) => {
+    if (!isAiming) return;
+
+    const touch = [...e.touches].find(t => t.identifier === activeTouchId);
+    if (!touch) return;
+
+    const dx = touch.clientX - lastX;
+    const dy = touch.clientY - lastY;
+
+    rotation.current.yaw -= dx * 0.005;
+    rotation.current.pitch -= dy * 0.005;
+
+    rotation.current.pitch = Math.max(-Math.PI / 3, Math.min(Math.PI / 6, rotation.current.pitch));
+
+    lastX = touch.clientX;
+    lastY = touch.clientY;
+  };
+
+  const handleTouchEnd = () => {
+    activeTouchId = null;
+  };
+
+  window.addEventListener('touchstart', handleTouchStart);
+  window.addEventListener('touchmove', handleTouchMove);
+  window.addEventListener('touchend', handleTouchEnd);
+
+  return () => {
+    window.removeEventListener('touchstart', handleTouchStart);
+    window.removeEventListener('touchmove', handleTouchMove);
+    window.removeEventListener('touchend', handleTouchEnd);
+  };
+}, [isAiming]);
 
   useEffect(() => {
+
+    if (isMobile) return;
     const handleMouseMove = (e) => {
       if (!isAiming) return;
       rotation.current.yaw -= e.movementX * 0.002;
