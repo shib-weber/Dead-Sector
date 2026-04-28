@@ -262,6 +262,7 @@ const [wave, setWave] = useState(1);
   const [gameOver, setGameOver] = useState(false);
   const [isAiming, setIsAiming] = useState(false);
   const [monsterDead, setMonsterDead] = useState(false);
+  const [waveMessage, setWaveMessage] = useState("");
 
   const moveDirRef = useRef(new THREE.Vector3(0, 0, 0));
   const isRunningRef = useRef(false);
@@ -292,23 +293,37 @@ const [wave, setWave] = useState(1);
     modelRef.current?.shoot();
     spawnBullet();
   };
-  const handleSummon = () => {
+const handleSummon = () => {
   if (dungeonStatus !== "closed") return;
 
   setDungeonStatus("opening");
 
   setTimeout(() => {
-    const count = wave; // 1 → 2 → 3
-    const newMonsters = Array.from({ length: count }).map((_, i) => ({
-      id: Math.random(),
-      position: [i * 5 - 5, -0.2, -40]
-    }));
+    const count = wave;
 
+    const newMonsters = Array.from({ length: count }).map(() => {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 25 + Math.random() * 15;
+
+      return {
+        id: Math.random(),
+        position: [
+          Math.cos(angle) * radius,
+          -0.2,
+          Math.sin(angle) * radius
+        ]
+      };
+    });
+
+    monsterRefs.current = [];
     setMonsters(newMonsters);
+
+    // 🔥 IMPORTANT
+    setMonsterActive(true);
+
     setDungeonStatus("active");
   }, 1500);
 };
-
 
   useEffect(() => {
     const mousedown = (e) => { if (e.button === 0) handleFire(e); };
@@ -338,14 +353,47 @@ const [wave, setWave] = useState(1);
     window.addEventListener('keyup', keyUp);
     return () => { window.removeEventListener('keydown', keyDown); window.removeEventListener('keyup', keyUp); }
   }, []);
-  useEffect(() => {
+useEffect(() => {
   if (monsters.length === 0 && dungeonStatus === "active") {
+
     if (wave >= 3) {
-      setMonsterDead(true); // FINAL WIN
-    } else {
-      setWave(prev => prev + 1);
-      setDungeonStatus("closed");
+      setMonsterDead(true);
+      return;
     }
+
+    setWaveMessage(`WAVE ${wave} CLEARED`);
+
+    setTimeout(() => {
+      setWaveMessage("SUMMONING NEXT WAVE...");
+
+      setTimeout(() => {
+        const nextWave = wave + 1;
+        setWave(nextWave);
+
+        // 🔥 AUTO SPAWN NEXT WAVE
+        const newMonsters = Array.from({ length: nextWave }).map(() => {
+          const angle = Math.random() * Math.PI * 2;
+          const radius = 25 + Math.random() * 20;
+
+          return {
+            id: Math.random(),
+            position: [
+              Math.cos(angle) * radius,
+              -0.2,
+              Math.sin(angle) * radius
+            ]
+          };
+        });
+
+        monsterRefs.current = [];
+        setMonsters(newMonsters);
+        setMonsterActive(true);
+        setDungeonStatus("active");
+
+        setWaveMessage("");
+      }, 2000);
+
+    }, 2000);
   }
 }, [monsters]);
 
@@ -377,6 +425,11 @@ const [wave, setWave] = useState(1);
         <button onClick={handleGunOut} style={btn}>{isAiming ? "HOLSTER" : "DRAW WEAPON"}</button>
         <button onClick={handleSummon} style={{ ...btn, marginLeft: 10 }}>{dungeonStatus === "closed" ? "SUMMON" : "LIVE"}</button>
       </div>
+              {waveMessage && (
+          <div style={waveUI}>
+            {waveMessage}
+          </div>
+        )}
 
       <Canvas shadows camera={{ position: [0, 5, 10], fov: 45 }} onCreated={({ camera }) => { cameraRef.current = camera }}>
         <color attach="background" args={['#020000']} />
@@ -414,7 +467,8 @@ const [wave, setWave] = useState(1);
     playerRef={modelRef}
     setGameOver={setGameOver}
     position={m.position}
-    hp={100 + wave * 20} // scaling difficulty
+    hp={100 + wave * 20} 
+    scale={2.5}
   />
 ))}
         </Suspense>
@@ -470,3 +524,16 @@ const innerCross = { width: 4, height: 4, background: 'red', borderRadius: '50%'
 const overlayStyle = { position: 'absolute', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.95)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 1000, color: 'white', fontFamily: 'monospace' }
 const fireBtn = { position: 'absolute', bottom: 30, right: 30, width: 70, height: 70, borderRadius: '50%', background: 'rgba(255, 0, 0, 0.35)', border: '2px solid rgba(255,255,255,0.6)', color: '#fff', fontSize: '28px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 200, backdropFilter: 'blur(6px)', boxShadow: '0 0 15px rgba(255,0,0,0.6)', transition: '0.2s ease' }
 const joystickContainer = { position: 'absolute', bottom: 30, left: 30, zIndex: 200 }
+const waveUI = {
+  position: 'absolute',
+  top: '40%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  color: 'red',
+  fontSize: '2rem',
+  fontFamily: 'monospace',
+  letterSpacing: '3px',
+  textAlign: 'center',
+  zIndex: 999,
+  textShadow: '0 0 15px red'
+}
