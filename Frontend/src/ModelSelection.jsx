@@ -5,9 +5,11 @@ import { OrbitControls, Environment } from "@react-three/drei";
 // Import BOTH models
 import { Model as Male } from "./Male";
 import { Model as Female } from "./Female";
+import { Model as Female2 } from "./Female2";
+
 
 function Preview({ type }) {
-  const Component = type === "male" ? Male : Female;
+  const Component = type === "male" ? Male : type === "female" ? Female : Female2;
 
   return (
     <Suspense fallback={null}>
@@ -97,7 +99,7 @@ export default function ModelSelection({ onSelect }) {
             ...label,
             fontSize: isMobile ? "12px" : "14px"
           }}>
-            MALE
+            JAMES
           </p>
         </div>
 
@@ -125,9 +127,38 @@ export default function ModelSelection({ onSelect }) {
             ...label,
             fontSize: isMobile ? "12px" : "14px"
           }}>
-            FEMALE
+            JEENE
           </p>
         </div>
+
+        {/*Female 2 */}
+                <div
+          style={{
+            ...card,
+            width: isMobile ? "140px" : "250px",
+            height: isMobile ? "190px" : "320px",
+            border: selected === "female2" ? "2px solid red" : "1px solid #444",
+          }}
+          onClick={() => setSelected("female2")}
+        >
+          <Canvas
+            camera={{ position: [0, 2, isMobile ? 4 : 5], fov: isMobile ? 50 : 40 }}
+            style={{ height: isMobile ? "130px" : "250px" }}
+          >
+            <ambientLight intensity={1} />
+            <Environment preset="dawn" />
+            <Preview type="female2" />
+            <OrbitControls enableZoom={false} target={[0, 0.2, 0]} />
+          </Canvas>
+
+          <p style={{
+            ...label,
+            fontSize: isMobile ? "12px" : "14px"
+          }}>
+            EMILY
+          </p>
+        </div>
+        
       </div>
 
       {/* ---------- BUTTON ---------- */}

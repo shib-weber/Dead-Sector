@@ -13,6 +13,8 @@ import { Joystick } from 'react-joystick-component'
 // Components
 import { Model as Male } from './Male'
 import { Model as Female } from './Female'
+import { Model as Female2 } from './Female2'
+
 import { Monster } from './Monster1'
 const isMobile = /Mobi|Android/i.test(navigator.userAgent);
 // ---------------- LOADER ----------------
@@ -338,7 +340,7 @@ const [wave, setWave] = useState(1);
 
   const moveDirRef = useRef(new THREE.Vector3(0, 0, 0));
   const isRunningRef = useRef(false);
-  const PlayerModel = selectedModel === "female" ? Female : Male;
+  const PlayerModel = selectedModel === "female" ? Female : selectedModel==="Male" ? Male : Female2;
 
   const spawnBullet = useCallback(() => {
     if (!cameraRef.current || !modelRef.current || !isAiming) return;
@@ -513,7 +515,7 @@ useEffect(() => {
   <div
     style={{
       position: 'absolute',
-      top: -60,   // ⬅️ extends forward
+      top: -60,   
       left: -18,
       width: 50,
       height: 60,
