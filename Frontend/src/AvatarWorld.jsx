@@ -131,6 +131,33 @@ useFrame(() => {
   return null;
 }
 
+import { useMemo } from "react";
+
+function HeartGeometry() {
+  const geometry = useMemo(() => {
+    const x = 0, y = 0;
+
+    const heartShape = new THREE.Shape();
+    heartShape.moveTo(x, y);
+
+    heartShape.bezierCurveTo(x, y + 0.3, x - 0.5, y + 0.3, x - 0.5, y);
+    heartShape.bezierCurveTo(x - 0.5, y - 0.3, x, y - 0.6, x, y - 0.9);
+    heartShape.bezierCurveTo(x, y - 0.6, x + 0.5, y - 0.3, x + 0.5, y);
+    heartShape.bezierCurveTo(x + 0.5, y + 0.3, x, y + 0.3, x, y);
+
+    return new THREE.ExtrudeGeometry(heartShape, {
+      depth: 0.2,
+      bevelEnabled: true,
+      bevelSegments: 2,
+      steps: 2,
+      bevelSize: 0.05,
+      bevelThickness: 0.05,
+    });
+  }, []);
+
+  return <primitive object={geometry} />;
+}
+
 // ---------------- GAME SYSTEMS ----------------
 function GameSystems({ 
   isAiming, 
@@ -307,16 +334,44 @@ if (bullets.length > 0) {
   });
 
   return (
-    <group>
-      {bullets.map((b) => (
-        <mesh key={b.id} position={b.position}>
+  <group>
+    {bullets.map((b) => (
+      <mesh key={b.id} position={b.position} scale={modelType === "HotF" ? 0.8 : 1}>
+        
+        {modelType === "HotF" ? (
+          <HeartGeometry />
+        ) : (
           <sphereGeometry args={[0.15, 16, 16]} />
-          if(modelType==='male'){}
-          <meshBasicMaterial color={modelType==='male'? "#ffa600 ": modelType === 'female' ? "#000dff " : modelType==='female2'? "#8cff00":"#ff0000"} />
-          <pointLight color={modelType === 'male'?"#ffaa00":modelType === 'female' ? "#5900ff": modelType==='female2'?"#00ffbb":"#ff00a6"} intensity={15} distance={10} />
-        </mesh>
-      ))}
-    </group>
+        )}
+
+        <meshBasicMaterial
+          color={
+            modelType === "male"
+              ? "#ffa600"
+              : modelType === "female"
+              ? "#000dff"
+              : modelType === "female2"
+              ? "#8cff00"
+              : "#ff0000"
+          }
+        />
+
+        <pointLight
+          color={
+            modelType === "male"
+              ? "#ffaa00"
+              : modelType === "female"
+              ? "#5900ff"
+              : modelType === "female2"
+              ? "#00ffbb"
+              : "#ff00a6"
+          }
+          intensity={15}
+          distance={10}
+        />
+      </mesh>
+    ))}
+  </group>
   );
 }
 
