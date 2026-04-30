@@ -340,7 +340,7 @@ const [wave, setWave] = useState(1);
 
   const moveDirRef = useRef(new THREE.Vector3(0, 0, 0));
   const isRunningRef = useRef(false);
-  const PlayerModel = selectedModel === "female" ? Female : selectedModel==="Male" ? Male : Female2;
+  const PlayerModel = selectedModel === "female" ? Female : selectedModel==="male" ? Male : Female2;
 
   const spawnBullet = useCallback(() => {
     if (!cameraRef.current || !modelRef.current || !isAiming) return;
