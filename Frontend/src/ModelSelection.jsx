@@ -6,15 +6,18 @@ import { OrbitControls, Environment } from "@react-three/drei";
 import { Model as Male } from "./Male";
 import { Model as Female } from "./Female";
 import { Model as Female2 } from "./Female2";
+import { Model as EliteF } from "./EliteF";
+import { Model as EliteM } from "./EliteM";
+import {Model as HotF} from "./HotF"
 
 
 function Preview({ type }) {
-  const Component = type === "male" ? Male : type === "female" ? Female : Female2;
+  const Component = type === "male" ? Male : type === "female" ? Female : type === "female2" ? Female2 :type==="EliteF" ? EliteF : type=== "EliteM"? EliteM :HotF
 
   return (
     <Suspense fallback={null}>
       <Component
-        scale={1.6}
+        scale={type ==="EliteM"?1.4: type ==='EliteF'?1.8 : type==='HotF'?1.9: type==='male'?2:2.3}
         position={[0, -1.2, 0]}
         isAiming={true}
       />
@@ -92,7 +95,7 @@ export default function ModelSelection({ onSelect }) {
             <ambientLight intensity={1} />
             <Environment preset="dawn" />
             <Preview type="male" />
-            <OrbitControls enableZoom={false} target={[0, 0.4, 0]} />
+            <OrbitControls enableZoom={false} target={[0, 0.7, 0]} />
           </Canvas>
 
           <p style={{
@@ -120,7 +123,7 @@ export default function ModelSelection({ onSelect }) {
             <ambientLight intensity={1} />
             <Environment preset="dawn" />
             <Preview type="female" />
-            <OrbitControls enableZoom={false} target={[0, 0.2, 0]} />
+            <OrbitControls enableZoom={false} target={[0, 0.8, 0]} />
           </Canvas>
 
           <p style={{
@@ -148,7 +151,7 @@ export default function ModelSelection({ onSelect }) {
             <ambientLight intensity={1} />
             <Environment preset="dawn" />
             <Preview type="female2" />
-            <OrbitControls enableZoom={false} target={[0, 0.2, 0]} />
+            <OrbitControls enableZoom={false} target={[0, 0.8, 0]} />
           </Canvas>
 
           <p style={{
@@ -156,6 +159,84 @@ export default function ModelSelection({ onSelect }) {
             fontSize: isMobile ? "12px" : "14px"
           }}>
             EMILY
+          </p>
+        </div>
+                {/* Elite FEMALE */}
+        <div
+          style={{
+            ...card,
+            width: isMobile ? "140px" : "250px",
+            height: isMobile ? "190px" : "320px",
+            border: selected === "Elite female" ? "2px solid red" : "1px solid #444",
+          }}
+        >
+          <Canvas
+            camera={{ position: [0, 2, isMobile ? 4 : 5], fov: isMobile ? 50 : 40 }}
+            style={{ height: isMobile ? "130px" : "250px" }}
+          >
+            <ambientLight intensity={1} />
+            <Environment preset="dawn" />
+            <Preview type="EliteF" />
+            <OrbitControls enableZoom={false} target={[-0.3, 0.8, 0]} />
+          </Canvas>
+
+          <p style={{
+            ...label,
+            fontSize: isMobile ? "12px" : "14px"
+          }}>
+            NOVA(Locked)
+          </p>
+        </div>
+       {/* Elite MALE */}
+        <div
+          style={{
+            ...card,
+            width: isMobile ? "140px" : "250px",
+            height: isMobile ? "190px" : "320px",
+            border: selected === "Elite female" ? "2px solid red" : "1px solid #444",
+          }}
+        >
+          <Canvas
+            camera={{ position: [0, 2, isMobile ? 4 : 5], fov: isMobile ? 50 : 40 }}
+            style={{ height: isMobile ? "130px" : "250px" }}
+          >
+            <ambientLight intensity={1} />
+            <Environment preset="dawn" />
+            <Preview type="EliteM" />
+            <OrbitControls enableZoom={false} target={[0, 0.8, 0]} />
+          </Canvas>
+
+          <p style={{
+            ...label,
+            fontSize: isMobile ? "12px" : "14px"
+          }}>
+            Bellion(Locked)
+          </p>
+        </div>
+      {/* Hot F */}
+        <div
+          style={{
+            ...card,
+            width: isMobile ? "140px" : "250px",
+            height: isMobile ? "190px" : "320px",
+            border: selected === "Elite female" ? "2px solid red" : "1px solid #444",
+          }}
+        >
+          <Canvas
+            camera={{ position: [0, 2, isMobile ? 4 : 5], fov: isMobile ? 50 : 40 }}
+            style={{ height: isMobile ? "130px" : "250px" }}
+          >
+            <ambientLight intensity={1.5} />
+            <Environment preset="night" />
+            <Preview type="HotF" />
+            <OrbitControls enableZoom={false} target={[0, -1.1, 0]} />
+          </Canvas>
+
+          <p style={{
+            ...label,
+            fontSize: isMobile ? "12px" : "14px"
+          }}>
+            MELLONA(Locked)
           </p>
         </div>
         
@@ -241,8 +322,10 @@ const title = {
 };
 
 const grid = {
-  display: "flex",
-  justifyContent: "center",
+  display: "grid",
+  gridTemplateColumns: "repeat(3, 1fr)", 
+  gap: "20px",
+  justifyItems: "center",
 };
 
 const card = {
