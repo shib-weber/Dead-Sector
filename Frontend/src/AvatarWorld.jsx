@@ -310,8 +310,9 @@ if (bullets.length > 0) {
       {bullets.map((b) => (
         <mesh key={b.id} position={b.position}>
           <sphereGeometry args={[0.15, 16, 16]} />
-          <meshBasicMaterial color="#ffff00" />
-          <pointLight color="#ffaa00" intensity={15} distance={10} />
+          if(modelType==='male'){}
+          <meshBasicMaterial color={modelType==='male'? "#ffa600 ": modelType === 'female' ? "#000dff " : "#8cff00"} />
+          <pointLight color={modelType === 'male'?"#ffaa00":modelType === 'female' ? "#5900ff":"#00ffbb"} intensity={15} distance={10} />
         </mesh>
       ))}
     </group>
