@@ -14,6 +14,7 @@ import { Joystick } from 'react-joystick-component'
 import { Model as Male } from './Male'
 import { Model as Female } from './Female'
 import { Model as Female2 } from './Female2'
+import { Model as HotF } from './HotF'
 
 import { Monster } from './Monster1'
 const isMobile = /Mobi|Android/i.test(navigator.userAgent);
@@ -45,14 +46,14 @@ function FlowingLava() {
 }
 
 // ---------------- GROUND ----------------
-function Ground() {
+function Ground({modelType}) {
   // Define the number of rings and the gap between them
   const numRings = 4;
   const ringGap = 2; // Distance between each hexagonal ring
   const baseRadius = 4.8; // Starting inner radius
 
   return (
-    <group position={[0, -1.5, 0]}>
+    <group position={modelType==='HotF'?[0, -1.5, 0]:[0, -1.5, 0]}>
       {/* Main Concrete Platform */}
       <mesh receiveShadow>
         <cylinderGeometry args={[15, 17, 2.5, 64]} />
@@ -311,8 +312,8 @@ if (bullets.length > 0) {
         <mesh key={b.id} position={b.position}>
           <sphereGeometry args={[0.15, 16, 16]} />
           if(modelType==='male'){}
-          <meshBasicMaterial color={modelType==='male'? "#ffa600 ": modelType === 'female' ? "#000dff " : "#8cff00"} />
-          <pointLight color={modelType === 'male'?"#ffaa00":modelType === 'female' ? "#5900ff":"#00ffbb"} intensity={15} distance={10} />
+          <meshBasicMaterial color={modelType==='male'? "#ffa600 ": modelType === 'female' ? "#000dff " : modelType==='female2'? "#8cff00":"#ff0000"} />
+          <pointLight color={modelType === 'male'?"#ffaa00":modelType === 'female' ? "#5900ff": modelType==='female2'?"#00ffbb":"#ff00a6"} intensity={15} distance={10} />
         </mesh>
       ))}
     </group>
@@ -341,7 +342,7 @@ const [wave, setWave] = useState(1);
 
   const moveDirRef = useRef(new THREE.Vector3(0, 0, 0));
   const isRunningRef = useRef(false);
-  const PlayerModel = selectedModel === "female" ? Female : selectedModel==="male" ? Male : Female2;
+  const PlayerModel = selectedModel === "female" ? Female : selectedModel==="male" ? Male :selectedModel==="female2"? Female2:HotF;
 
   const spawnBullet = useCallback(() => {
     if (!cameraRef.current || !modelRef.current || !isAiming) return;
@@ -600,7 +601,7 @@ useEffect(() => {
           <PlayerModel
             ref={modelRef}
             scale={1.6}
-            position={[0, -0.2, 0]}
+            position={[0, selectedModel==='HotF'?3:-0.2, 0]}
             isAiming={isAiming}
           />
           <RadarLogic
@@ -638,7 +639,7 @@ useEffect(() => {
 ))}
         </Suspense>
 
-        <Ground />
+        <Ground modelType={selectedModel}/>
         <FlowingLava />
         <ContactShadows opacity={0.8} scale={30} blur={2.5} far={10} />
         <OrbitControls enabled={!isAiming} enablePan={false} maxPolarAngle={Math.PI / 2.1} />

@@ -219,8 +219,9 @@ export default function ModelSelection({ onSelect }) {
             ...card,
             width: isMobile ? "140px" : "250px",
             height: isMobile ? "190px" : "320px",
-            border: selected === "Elite female" ? "2px solid red" : "1px solid #444",
+            border: selected === "HotF" ? "2px solid red" : "1px solid #444",
           }}
+          onClick={() => setSelected("HotF")}
         >
           <Canvas
             camera={{ position: [0, 2, isMobile ? 4 : 5], fov: isMobile ? 50 : 40 }}
@@ -236,7 +237,7 @@ export default function ModelSelection({ onSelect }) {
             ...label,
             fontSize: isMobile ? "12px" : "14px"
           }}>
-            MELLONA(Locked)
+            MELLONA
           </p>
         </div>
         
